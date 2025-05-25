@@ -71,7 +71,7 @@ html.cursor-o-default .cell {
   max-width: 720px; /* Optional: set a max size for large screens */
   max-height: 720px; /* Optional: set a max size for large screens */
   background-color: white; /* Ensure mega-grid background is white */
-  margin-top: 60px; /* Approx. button height + top-controls margin-bottom */
+  margin-top: 0; /* Let top-controls push it down */
 }
 
 .mega-cell {
@@ -244,10 +244,12 @@ html.safari-styles .cell.empty.safari-hoverable:hover {
   flex-direction: column;
   align-items: center;
   /* justify-content: center; Removed to allow top-controls to be at top */
+  justify-content: flex-start; /* Align items to the start of the container (top) */
   padding-top: 20px; 
   width: 100%; 
   min-height: 100vh; 
-  position: relative; 
+  /* position: relative; No longer needed if top-controls is in normal flow */
+  box-sizing: border-box; /* Include padding in height calculation */
 }
 
 .top-controls {
@@ -256,10 +258,11 @@ html.safari-styles .cell.empty.safari-hoverable:hover {
   align-items: center;
   margin-bottom: 20px; /* Space between buttons and grid */
   width: 100%;
-  position: absolute; /* Position relative to app-container */
-  top: 20px; /* Same as app-container padding-top */
-  left: 0;
-  right: 0;
+  /* position: absolute; Remove absolute positioning */
+  /* top: 20px; Remove */
+  /* left: 0; Remove */
+  /* right: 0; Remove */
+  /* No explicit height, let content define it */
 }
 
 .new-game-button, .undo-button {
@@ -294,7 +297,7 @@ html.safari-styles .cell.empty.safari-hoverable:hover {
 /* Media Query for smaller screens */
 @media (max-width: 600px) {
   .top-controls {
-    margin-bottom: 10px; /* Reduce space below buttons */
+    margin-bottom: 15px; /* Adjusted space below buttons for mobile */
   }
 
   .new-game-button, .undo-button {
@@ -304,7 +307,8 @@ html.safari-styles .cell.empty.safari-hoverable:hover {
   }
 
   .mega-grid {
-    margin-top: 45px; /* Simplified: approx (button height + top-controls margin-bottom) */
+    /* margin-top: 45px; Remove or adjust */
+    margin-top: 0; /* Let top-controls push it down */
   }
 
   .mega-cell {

@@ -66,14 +66,16 @@ html.cursor-o-default .cell {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   grid-template-rows: repeat(3, 1fr);
-  width: 720px; /* Scaled up by 1.5x */
-  height: 720px; /* Scaled up by 1.5x */
+  width: 90vmin; /* Use viewport minimum to fit screen */
+  height: 90vmin; /* Use viewport minimum to fit screen */
+  max-width: 720px; /* Optional: set a max size for large screens */
+  max-height: 720px; /* Optional: set a max size for large screens */
   background-color: white; /* Ensure mega-grid background is white */
   margin-top: 60px; /* Approx. button height + top-controls margin-bottom */
 }
 
 .mega-cell {
-  padding: 15px; /* Scaled up by 1.5x */
+  padding: 2vmin; /* Responsive padding */
   box-sizing: border-box;
   position: relative; /* For pseudo-elements if needed for borders, or direct border styling */
 }
@@ -153,19 +155,23 @@ html.safari-styles .cell.empty.safari-hoverable:hover {
   border-bottom: 2px solid lightgray; /* Thickness increased by 2x */
 }
 
-/* Highlight eligible mini-grids by changing their internal border colors */
+/* Highlight eligible mini-grids by changing their internal border colors and thickness */
 .mega-cell.active-for-x .mini-grid > .cell:not(:nth-child(3n)) {
   border-right-color: red;
+  border-right-width: 3px; /* 1.5x of 2px */
 }
 .mega-cell.active-for-x .mini-grid > .cell:not(:nth-child(n+7)) {
   border-bottom-color: red;
+  border-bottom-width: 3px; /* 1.5x of 2px */
 }
 
 .mega-cell.active-for-o .mini-grid > .cell:not(:nth-child(3n)) {
   border-right-color: blue;
+  border-right-width: 3px; /* 1.5x of 2px */
 }
 .mega-cell.active-for-o .mini-grid > .cell:not(:nth-child(n+7)) {
   border-bottom-color: blue;
+  border-bottom-width: 3px; /* 1.5x of 2px */
 }
 
 .mega-cell.winner {
@@ -174,6 +180,7 @@ html.safari-styles .cell.empty.safari-hoverable:hover {
   justify-content: center; /* Center horizontally */
   align-items: center; /* Center vertically */
   /* The thick black borders from .mega-grid > .mega-cell will still apply */
+  box-shadow: none;
 }
 
 /* SVG itself within the won mega-cell */
@@ -282,4 +289,25 @@ html.safari-styles .cell.empty.safari-hoverable:hover {
   cursor: not-allowed;
   border-color: #eaeaea;
   box-shadow: none;
+}
+
+/* Media Query for smaller screens */
+@media (max-width: 600px) {
+  .top-controls {
+    margin-bottom: 10px; /* Reduce space below buttons */
+  }
+
+  .new-game-button, .undo-button {
+    padding: 8px 12px; /* Smaller padding */
+    font-size: 0.9em; /* Smaller font */
+    margin: 0 3px; /* Reduce margin between buttons */
+  }
+
+  .mega-grid {
+    margin-top: 45px; /* Simplified: approx (button height + top-controls margin-bottom) */
+  }
+
+  .mega-cell {
+    padding: 1.5vmin; /* Slightly smaller padding for very small screens */
+  }
 }

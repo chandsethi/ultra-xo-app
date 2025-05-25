@@ -36,3 +36,250 @@
     transform: rotate(360deg);
   }
 }
+
+body, html, #root {
+  height: 100%;
+  margin: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background-color: white; /* Set page background to white as requested */
+}
+
+/* Default cursor for X turn - applied to body and overridden as needed */
+html.cursor-x-default,
+html.cursor-x-default body,
+html.cursor-x-default .cell {
+  /* SVG for X cursor (red). Hotspot roughly center (16,16 for a 32x32px cursor) */
+  cursor: url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'32\' height=\'32\' viewBox=\'0 0 24 24\'%3E%3Cpath stroke=\'red\' stroke-width=\'3\' stroke-linecap=\'square\' d=\'M6 6 L18 18 M6 18 L18 6\'/%3E%3C/svg%3E") 16 16, none;
+}
+
+/* Default cursor for O turn - applied to body and overridden as needed */
+html.cursor-o-default,
+html.cursor-o-default body,
+html.cursor-o-default .cell {
+  /* SVG for O cursor (blue). Hotspot roughly center (16,16 for a 32x32px cursor) */
+  cursor: url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'32\' height=\'32\' viewBox=\'0 0 24 24\'%3E%3Ccircle cx=\'12\' cy=\'12\' r=\'8\' stroke=\'blue\' stroke-width=\'3\' fill=\'none\'/%3E%3C/svg%3E") 16 16, none;
+}
+
+.mega-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(3, 1fr);
+  width: 720px; /* Scaled up by 1.5x */
+  height: 720px; /* Scaled up by 1.5x */
+  background-color: white; /* Ensure mega-grid background is white */
+  margin-top: 60px; /* Approx. button height + top-controls margin-bottom */
+}
+
+.mega-cell {
+  padding: 15px; /* Scaled up by 1.5x */
+  box-sizing: border-box;
+  position: relative; /* For pseudo-elements if needed for borders, or direct border styling */
+}
+
+/* Thick black lines for the mega-grid's # symbol */
+/* Apply to the right of all mega-cells not in the last column */
+.mega-grid > .mega-cell:not(:nth-child(3n)) {
+  border-right: 5px solid black; /* Thickness scaled up */
+}
+
+/* Apply to the bottom of all mega-cells not in the last row */
+.mega-grid > .mega-cell:not(:nth-child(n+7)) {
+  border-bottom: 5px solid black; /* Thickness scaled up */
+}
+
+.mini-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(3, 1fr);
+  width: 100%;
+  height: 100%;
+}
+
+.cell {
+  box-sizing: border-box;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 1.5em; /* Scaled up by 1.5x */
+  cursor: pointer; /* Default cursor for non-Safari browsers */
+  color: black; /* Default color for X/O SVGs (inherited by currentColor) */
+  position: relative; /* Needed for absolute positioning of hover-preview */
+  background-color: white; /* Ensure cells are white by default */
+  transition: background-color 0.1s ease; /* Smooth transition for Safari hover */
+}
+
+/* Safari: Darken empty cell on hover - ONLY if it has safari-hoverable class */
+html.safari-styles .cell.empty.safari-hoverable:hover {
+  background-color: #f0f0f0;
+}
+
+.cell svg {
+  width: 70%; /* Size of the X/O SVG within the cell */
+  height: 70%; /* Size of the X/O SVG within the cell */
+  padding: 0; /* Important: remove padding to let SVG fill */
+  /* background-color: white; /* Or a very light tint if needed */
+}
+
+/* Non-Safari: Style for the low-opacity hover preview */
+.hover-preview {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  opacity: 0.2; /* Low opacity for the preview */
+  pointer-events: none; /* So it doesn't interfere with cell clicks */
+}
+
+.hover-preview svg {
+  width: 70%; /* Same size as actual placed SVGs */
+  height: 70%;
+  /* color: gray; */ /* Color will now be inherited via currentColor from XIcon/OIcon color prop */
+}
+
+/* Thin light gray lines for the mini-grid's # symbol */
+/* Apply to the right of all cells not in the last column of their mini-grid */
+.mini-grid > .cell:not(:nth-child(3n)) {
+  border-right: 2px solid lightgray; /* Thickness increased by 2x */
+}
+
+/* Apply to the bottom of all cells not in the last row of their mini-grid */
+.mini-grid > .cell:not(:nth-child(n+7)) {
+  border-bottom: 2px solid lightgray; /* Thickness increased by 2x */
+}
+
+/* Highlight eligible mini-grids by changing their internal border colors */
+.mega-cell.active-for-x .mini-grid > .cell:not(:nth-child(3n)) {
+  border-right-color: red;
+}
+.mega-cell.active-for-x .mini-grid > .cell:not(:nth-child(n+7)) {
+  border-bottom-color: red;
+}
+
+.mega-cell.active-for-o .mini-grid > .cell:not(:nth-child(3n)) {
+  border-right-color: blue;
+}
+.mega-cell.active-for-o .mini-grid > .cell:not(:nth-child(n+7)) {
+  border-bottom-color: blue;
+}
+
+.mega-cell.winner {
+  padding: 0; /* Remove padding so the large X/O fills the cell */
+  display: flex; /* Use flexbox for centering */
+  justify-content: center; /* Center horizontally */
+  align-items: center; /* Center vertically */
+  /* The thick black borders from .mega-grid > .mega-cell will still apply */
+}
+
+/* SVG itself within the won mega-cell */
+.mega-cell.winner svg {
+  width: 70%; /* Adjusted from 75% for better optical centering */
+  height: 70%; /* Adjusted from 75% for better optical centering */
+  /* margin: auto; display: block; no longer strictly needed if parent is flex, but harmless */
+}
+
+/* Optional: Style for game-over state on the mega-grid */
+.mega-grid.game-over {
+  /* e.g., could add a semi-transparent overlay or border change */
+  /* For now, no specific style, but the class is there for future use. */
+}
+
+/* Optional: Style for a winner message */
+.winner-message {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background-color: rgba(255, 255, 255, 0.9);
+  padding: 20px;
+  border-radius: 10px;
+  font-size: 2em;
+  text-align: center;
+  z-index: 100;
+}
+
+.winning-line {
+  /* Base styles, specific styles in JS for now based on gridType */
+  pointer-events: none; /* Ensure lines don't interfere with clicks */
+  z-index: 5; /* Above cells but below other UI if needed */
+}
+
+.hover-icon {
+  /* class for X and O icons when in hover-preview */
+  /* color is already set to gray in .hover-preview svg style */
+}
+
+/* Ensure mega-cell when it shows winner icon, still respects its grid placement */
+.mega-cell.winner {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 0; /* Important: remove padding to let SVG fill */
+  /* background-color: white; /* Or a very light tint if needed */
+}
+
+.mega-cell.winner .icon-svg {
+  width: 75%; 
+  height: 75%;
+  align-items: center;
+  justify-content: center;
+  padding-top: 20px; /* Add some padding at the top */
+  position: relative; /* To allow absolute positioning of the button */
+}
+
+.app-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  /* justify-content: center; Removed to allow top-controls to be at top */
+  padding-top: 20px; 
+  width: 100%; 
+  min-height: 100vh; 
+  position: relative; 
+}
+
+.top-controls {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-bottom: 20px; /* Space between buttons and grid */
+  width: 100%;
+  position: absolute; /* Position relative to app-container */
+  top: 20px; /* Same as app-container padding-top */
+  left: 0;
+  right: 0;
+}
+
+.new-game-button, .undo-button {
+  /* position: absolute; Removed as they are now flex items in top-controls */
+  /* top: 20px;  Removed */
+  /* right: 20px; Removed for new-game, undo will be next to it */
+  padding: 10px 15px; 
+  font-size: 1em; 
+  background-color: #f0f0f0; 
+  border: 1px solid #dcdcdc; 
+  border-radius: 6px; 
+  cursor: pointer;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+  color: #333; 
+  box-shadow: 0 2px 4px rgba(0,0,0,0.05); 
+  margin: 0 5px; /* Add some margin between buttons */
+}
+
+.new-game-button:hover, .undo-button:hover {
+  background-color: #e9e9e9; 
+  border-color: #c0c0c0; 
+}
+
+.undo-button:disabled {
+  background-color: #f8f8f8; /* Lighter background for disabled state */
+  color: #aaa; /* Lighter text for disabled state */
+  cursor: not-allowed;
+  border-color: #eaeaea;
+  box-shadow: none;
+}

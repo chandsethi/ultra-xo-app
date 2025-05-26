@@ -210,6 +210,10 @@ const WINNING_COMBINATIONS = [
   [0, 4, 8], [2, 4, 6]             // diagonals
 ];
 
+const isMiniGridFull = (miniGridCells) => {
+  return miniGridCells.every(cell => cell !== null);
+};
+
 const checkWinAndCombination = (gridCells) => {
   for (const combination of WINNING_COMBINATIONS) {
     const [a, b, c] = combination;
@@ -225,11 +229,54 @@ const isSafari = () => {
   return ua.includes('safari') && !ua.includes('chrome') && !ua.includes('android');
 };
 
-const isMiniGridFull = (miniGridCells) => {
-  return miniGridCells.every(cell => cell !== null);
+const LOCAL_STORAGE_KEY = 'ultraXOGameState';
+
+// Helper function to simulate a move and check for a global win
+const simulateMove = (boardState, miniGridWinInfo, megaCellIdx, miniCellIdx, player) => {
+  // Create temporary copies for simulation
+  const tempBoardState = boardState.map(megaCell => [...megaCell]);
+  tempBoardState[megaCellIdx][miniCellIdx] = player;
+
+  const tempMiniGridWinInfo = miniGridWinInfo.map(info => info ? { ...info } : null);
+
+  // Check for local win in the affected mini-grid
+  // Assumes the move is into a valid, open cell in an undecided mini-grid
+  const miniWinCheck = checkWinAndCombination(tempBoardState[megaCellIdx]);
+  if (miniWinCheck) {
+    tempMiniGridWinInfo[megaCellIdx] = miniWinCheck;
+  }
+
+  // Check for global win based on the updated tempMiniGridWinInfo
+  const megaGridCellsForWinCheck = tempMiniGridWinInfo.map(info => info ? info.winner : null);
+  const overallWinCheck = checkWinAndCombination(megaGridCellsForWinCheck);
+
+  return { globalWinDetails: overallWinCheck }; 
 };
 
-const LOCAL_STORAGE_KEY = 'ultraXOGameState';
+// Helper function to get eligible moves
+const getEligibleMoves = (boardState, activeMegaCellIndex, miniGridWinInfo) => {
+  const eligibleMoves = [];
+  if (activeMegaCellIndex !== null && !miniGridWinInfo[activeMegaCellIndex] && !isMiniGridFull(boardState[activeMegaCellIndex])) {
+    // Play in the target mega-cell
+    for (let miniCellIdx = 0; miniCellIdx < 9; miniCellIdx++) {
+      if (!boardState[activeMegaCellIndex][miniCellIdx]) {
+        eligibleMoves.push({ megaCellIdx: activeMegaCellIndex, miniCellIdx });
+      }
+    }
+  } else {
+    // Play in any non-won and non-full mega-cell
+    for (let megaCellIdx = 0; megaCellIdx < 9; megaCellIdx++) {
+      if (!miniGridWinInfo[megaCellIdx] && !isMiniGridFull(boardState[megaCellIdx])) {
+        for (let miniCellIdx = 0; miniCellIdx < 9; miniCellIdx++) {
+          if (!boardState[megaCellIdx][miniCellIdx]) {
+            eligibleMoves.push({ megaCellIdx, miniCellIdx });
+          }
+        }
+      }
+    }
+  }
+  return eligibleMoves;
+};
 
 function App() {
   const initialBoardState = () => Array(9).fill(null).map(() => Array(9).fill(null));
@@ -238,6 +285,9 @@ function App() {
   const initialMegaGridWinInfo = null;
   const initialActiveMegaCellIndex = null;
   const initialHistory = () => [];
+  const initialRedoStack = () => [];
+  const initialGameStateLog = () => [];
+  const initialShowLogsModal = false;
 
   const [boardState, setBoardState] = useState(initialBoardState());
   const [currentPlayer, setCurrentPlayer] = useState(initialPlayer);
@@ -246,6 +296,65 @@ function App() {
   const [megaGridWinInfo, setMegaGridWinInfo] = useState(initialMegaGridWinInfo);
   const [activeMegaCellIndex, setActiveMegaCellIndex] = useState(initialActiveMegaCellIndex);
   const [history, setHistory] = useState(initialHistory());
+  const [redoStack, setRedoStack] = useState(initialRedoStack());
+  const [gameStateLog, setGameStateLog] = useState(initialGameStateLog());
+  const [showLogsModal, setShowLogsModal] = useState(initialShowLogsModal);
+
+  // useEffect for bot's turn
+  useEffect(() => {
+    if (currentPlayer === 'O' && !megaGridWinInfo) { // Check if it's Bot's turn and game is not over
+      const eligibleMoves = getEligibleMoves(boardState, activeMegaCellIndex, miniGridWinInfo);
+      
+      if (eligibleMoves.length === 0) {
+        return; // No moves available for the bot
+      }
+
+      // 1. Check for Bot's ('O') immediate win
+      for (const botMove of eligibleMoves) {
+        const { globalWinDetails } = simulateMove(boardState, miniGridWinInfo, botMove.megaCellIdx, botMove.miniCellIdx, 'O');
+        if (globalWinDetails && globalWinDetails.winner === 'O') {
+          handleCellClick(botMove.megaCellIdx, botMove.miniCellIdx);
+          return;
+        }
+      }
+
+      // 2. Check for User's ('X') immediate win to block
+      let moveToBlockUserWin = null;
+      // Iterate through all possible cells on the board to find where User 'X' could win
+      for (let megaIdx = 0; megaIdx < 9; megaIdx++) {
+        for (let miniIdx = 0; miniIdx < 9; miniIdx++) {
+          if (!boardState[megaIdx][miniIdx]) { // If cell is empty
+            const { globalWinDetails: userGlobalWin } = simulateMove(boardState, miniGridWinInfo, megaIdx, miniIdx, 'X');
+            if (userGlobalWin && userGlobalWin.winner === 'X') {
+              // User 'X' can win by playing at (megaIdx, miniIdx).
+              // Is this cell among Bot's current eligible moves?
+              const isBlockableByBot = eligibleMoves.some(
+                em => em.megaCellIdx === megaIdx && em.miniCellIdx === miniIdx
+              );
+              if (isBlockableByBot) {
+                moveToBlockUserWin = { megaCellIdx: megaIdx, miniCellIdx: miniIdx };
+                break; // Found a cell Bot can play to block User's win
+              }
+            }
+          }
+        }
+        if (moveToBlockUserWin) break; // Exit outer loop if block move is found
+      }
+
+      if (moveToBlockUserWin) {
+        handleCellClick(moveToBlockUserWin.megaCellIdx, moveToBlockUserWin.miniCellIdx);
+        return;
+      }
+
+      // 3. Fallback: Play a random eligible move
+      const randomMove = eligibleMoves[Math.floor(Math.random() * eligibleMoves.length)];
+      handleCellClick(randomMove.megaCellIdx, randomMove.miniCellIdx);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPlayer, boardState, activeMegaCellIndex, miniGridWinInfo, megaGridWinInfo, /* handleCellClick */]); 
+  // Added handleCellClick to dependency array in comment as it should be there or memoized.
+  // For now, to avoid potential infinite loops if handleCellClick is not stable, 
+  // will rely on ESLint disable. Ideally, handleCellClick should be wrapped in useCallback.
 
   // Load game state from local storage on initial mount
   useEffect(() => {
@@ -259,6 +368,9 @@ function App() {
         setMegaGridWinInfo(gameState.megaGridWinInfo === undefined ? initialMegaGridWinInfo : gameState.megaGridWinInfo); // Allow null
         setActiveMegaCellIndex(gameState.activeMegaCellIndex === undefined ? initialActiveMegaCellIndex : gameState.activeMegaCellIndex); // Allow null
         setHistory(gameState.history || initialHistory());
+        // redoStack and gameStateLog should not be loaded from localStorage for debugging purposes
+        // setRedoStack(gameState.redoStack || initialRedoStack());
+        // setGameStateLog(gameState.gameStateLog || initialGameStateLog());
       }
     } catch (error) {
       console.error("Failed to load game state from local storage:", error);
@@ -276,6 +388,9 @@ function App() {
       megaGridWinInfo,
       activeMegaCellIndex,
       history
+      // redoStack and gameStateLog are not part of persisted state
+      // redoStack,
+      // gameStateLog
     };
     try {
       localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(gameState));
@@ -325,15 +440,19 @@ function App() {
       return;
     }
 
+    // Player who made this move (before switching)
+    const movePlayer = currentPlayer;
+
     setHistory(prevHistory => [...prevHistory, 
       {
         boardState: JSON.parse(JSON.stringify(boardState)),
         currentPlayer,
         miniGridWinInfo: JSON.parse(JSON.stringify(miniGridWinInfo)),
-        megaGridWinInfo: JSON.parse(JSON.stringify(megaGridWinInfo)),
+        megaGridWinInfo: megaGridWinInfo ? JSON.parse(JSON.stringify(megaGridWinInfo)) : null, 
         activeMegaCellIndex
       }
     ]);
+    setRedoStack(initialRedoStack());
 
     const newBoardState = boardState.map((megaCell, mIdx) => 
       mIdx === megaCellIdx 
@@ -346,6 +465,7 @@ function App() {
     const miniWinCheck = checkWinAndCombination(currentMiniGridCells);
     let newMiniGridWinInfo = [...miniGridWinInfo];
     let gameContinues = true;
+    let newMegaGridWinInfo = megaGridWinInfo; // Use a new variable for megaGridWinInfo within this scope
 
     if (miniWinCheck && !(miniGridWinInfo[megaCellIdx] && miniGridWinInfo[megaCellIdx].winner)) {
       newMiniGridWinInfo[megaCellIdx] = miniWinCheck;
@@ -354,6 +474,7 @@ function App() {
       const megaGridCellsForWinCheck = newMiniGridWinInfo.map(info => info ? info.winner : null);
       const overallWinCheck = checkWinAndCombination(megaGridCellsForWinCheck);
       if (overallWinCheck) {
+        newMegaGridWinInfo = overallWinCheck; // Update local newMegaGridWinInfo
         setMegaGridWinInfo(overallWinCheck);
         gameContinues = false; 
       }
@@ -372,6 +493,29 @@ function App() {
     }
     
     setHoveredCell({ mega: null, mini: null });
+
+    // Add to game state log
+    const turnNumber = history.length; // history.length is now 1-based for the turn number
+    const playerWhoMadeTheMove = movePlayer;
+
+    let boardRepresentation = [];
+    for (let mgIdx = 0; mgIdx < 9; mgIdx++) {
+      const megaWinner = newMiniGridWinInfo[mgIdx] ? newMiniGridWinInfo[mgIdx].winner : null;
+      for (let mnIdx = 0; mnIdx < 9; mnIdx++) {
+        const cellVal = newBoardState[mgIdx][mnIdx];
+        if (cellVal === 'X') {
+          boardRepresentation.push(megaWinner === 'X' ? 'X' : 'x');
+        } else if (cellVal === 'O') {
+          boardRepresentation.push(megaWinner === 'O' ? 'O' : 'o');
+        } else {
+          boardRepresentation.push('-');
+        }
+      }
+    }
+    const boardString = boardRepresentation.join(',');
+
+    const logEntryString = `Turn ${turnNumber}; ${playerWhoMadeTheMove} played [mega ${megaCellIdx}, mini ${miniCellIdx}]; Board: [${boardString}]`;
+    setGameStateLog(prevLog => [...prevLog, logEntryString]);
   };
 
   const resetGameState = () => {
@@ -381,6 +525,9 @@ function App() {
     setMegaGridWinInfo(initialMegaGridWinInfo);
     setActiveMegaCellIndex(initialActiveMegaCellIndex);
     setHistory(initialHistory());
+    setRedoStack(initialRedoStack());
+    setGameStateLog(initialGameStateLog());
+    setShowLogsModal(initialShowLogsModal); // Reset modal state
     const htmlElement = document.documentElement;
     htmlElement.classList.remove('cursor-o-default', 'cursor-x-default');
     if (isSafari()) {
@@ -397,15 +544,59 @@ function App() {
   const handleUndo = () => {
     if (history.length === 0) return;
 
+    // Capture current state to push to redoStack
+    const currentStateForRedo = {
+      boardState: JSON.parse(JSON.stringify(boardState)),
+      currentPlayer,
+      miniGridWinInfo: JSON.parse(JSON.stringify(miniGridWinInfo)),
+      megaGridWinInfo: megaGridWinInfo ? JSON.parse(JSON.stringify(megaGridWinInfo)) : null,
+      activeMegaCellIndex,
+      // We might also want to save the game log state if undo/redo should affect it
+      // For now, game log will be linear and not affected by undo/redo for simplicity of debugging.
+    };
+    setRedoStack(prevRedoStack => [currentStateForRedo, ...prevRedoStack]);
+
     const lastState = history[history.length - 1];
-    setBoardState(JSON.parse(JSON.stringify(lastState.boardState))); // Deep copy just in case
+    setBoardState(JSON.parse(JSON.stringify(lastState.boardState))); 
     setCurrentPlayer(lastState.currentPlayer);
     setMiniGridWinInfo(JSON.parse(JSON.stringify(lastState.miniGridWinInfo)));
     setMegaGridWinInfo(lastState.megaGridWinInfo ? JSON.parse(JSON.stringify(lastState.megaGridWinInfo)) : null);
     setActiveMegaCellIndex(lastState.activeMegaCellIndex);
     
     setHistory(prevHistory => prevHistory.slice(0, -1));
-    setHoveredCell({ mega: null, mini: null }); // Reset hover on undo
+    setHoveredCell({ mega: null, mini: null }); 
+
+    // Log undo action (optional, could also just let the state reflect)
+    // setGameStateLog(prevLog => [...prevLog, { turn: 'Undo', player: 'N/A'}]);
+  };
+
+  const handleRedo = () => {
+    if (redoStack.length === 0) return;
+
+    const stateToRedo = redoStack[0];
+
+    // Push current state to history before redoing
+    setHistory(prevHistory => [...prevHistory, 
+      {
+        boardState: JSON.parse(JSON.stringify(boardState)),
+        currentPlayer,
+        miniGridWinInfo: JSON.parse(JSON.stringify(miniGridWinInfo)),
+        megaGridWinInfo: megaGridWinInfo ? JSON.parse(JSON.stringify(megaGridWinInfo)) : null,
+        activeMegaCellIndex
+      }
+    ]);
+
+    setBoardState(JSON.parse(JSON.stringify(stateToRedo.boardState)));
+    setCurrentPlayer(stateToRedo.currentPlayer);
+    setMiniGridWinInfo(JSON.parse(JSON.stringify(stateToRedo.miniGridWinInfo)));
+    setMegaGridWinInfo(stateToRedo.megaGridWinInfo ? JSON.parse(JSON.stringify(stateToRedo.megaGridWinInfo)) : null);
+    setActiveMegaCellIndex(stateToRedo.activeMegaCellIndex);
+
+    setRedoStack(prevRedoStack => prevRedoStack.slice(1));
+    setHoveredCell({ mega: null, mini: null });
+
+    // Log redo action (optional)
+    // setGameStateLog(prevLog => [...prevLog, { turn: 'Redo', player: 'N/A'}]);
   };
 
   return (
@@ -416,6 +607,12 @@ function App() {
         </button>
         <button onClick={handleUndo} className="undo-button" disabled={history.length === 0}>
           Undo
+        </button>
+        <button onClick={handleRedo} className="redo-button" disabled={redoStack.length === 0}>
+          Redo
+        </button>
+        <button onClick={() => setShowLogsModal(true)} className="show-logs-button">
+          Show Logs
         </button>
       </div>
       <div className={`mega-grid ${megaGridWinInfo ? 'game-over' : ''}`} style={{ position: 'relative'}}>
@@ -442,6 +639,26 @@ function App() {
           />}
       </div>
       <Analytics />
+      {/* Game State Log Modal */}
+      {showLogsModal && (
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <div className="modal-header">
+              <h3>Game State Log</h3>
+              <button onClick={() => setShowLogsModal(false)} className="modal-close-button">&times;</button>
+            </div>
+            <div className="modal-body">
+              {gameStateLog.length > 0 ? (
+                gameStateLog.map((logLine, index) => (
+                  <p key={index} className="log-line">{logLine}</p>
+                ))
+              ) : (
+                <p>No logs yet.</p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

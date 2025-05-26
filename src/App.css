@@ -317,3 +317,91 @@ html.safari-styles .cell.empty.safari-hoverable:hover {
     padding: 1.5vmin; /* Slightly smaller padding for very small screens */
   }
 }
+
+.top-controls button:disabled {
+  background-color: #cccccc;
+  color: #666666;
+  cursor: not-allowed;
+}
+
+/* Modal Styles */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal-content {
+  background-color: white;
+  padding: 20px;
+  border-radius: 8px;
+  width: 80%;
+  max-width: 700px;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid #eee;
+  padding-bottom: 10px;
+  margin-bottom: 15px;
+}
+
+.modal-header h3 {
+  margin: 0;
+  font-size: 1.5em;
+}
+
+.modal-close-button {
+  background: none;
+  border: none;
+  font-size: 1.8em;
+  cursor: pointer;
+  padding: 0 5px;
+  line-height: 1;
+}
+
+.modal-body {
+  overflow-y: auto;
+  flex-grow: 1; /* Allows body to take remaining space and scroll */
+}
+
+.log-line {
+  margin: 5px 0;
+  padding: 8px;
+  background-color: #f9f9f9;
+  border: 1px solid #eee;
+  border-radius: 4px;
+  font-family: monospace;
+  font-size: 0.9em;
+  word-break: break-all; /* Ensure long board strings wrap */
+}
+
+/* Ensure the log button fits in with others */
+.show-logs-button {
+  padding: 10px 15px;
+  font-size: 1em;
+  border: none;
+  border-radius: 5px;
+  background-color: #6c757d; /* A neutral color */
+  color: white;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+  margin-left: 10px;
+}
+
+.show-logs-button:hover {
+  background-color: #5a6268;
+}

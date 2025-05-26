@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Analytics } from '@vercel/analytics/react';
 import './App.css';
 
 const XIcon = ({ isLarge = false, customClass = '', color = 'black' }) => (
@@ -440,6 +441,7 @@ function App() {
             winner={megaGridWinInfo.winner} 
           />}
       </div>
+      <Analytics />
     </div>
   );
 }

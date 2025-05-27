@@ -82,29 +82,26 @@ export const getBotMove = (boardState, miniGridWinInfo, activeMegaCellIndex, pla
   const eligibleMoves = getEligibleMoves(boardState, activeMegaCellIndex, miniGridWinInfo);
 
   if (eligibleMoves.length === 0) {
-    // console.log("AI Log: No eligible moves found for Bot 'O'.");
-    return null; 
+    console.log("AI Log: No eligible moves found for Bot 'O'.");
+    return { move: null, aiDecisionInfo: "No eligible moves." }; 
   }
 
-  // Phase 2 Logic: Immediate Global Win/Loss Detection
+  // --- Phase 2 Logic: Immediate Global Win/Loss Detection (Keep this check first) ---
   // 1. Check for Bot's ('O') immediate win
   for (const botMove of eligibleMoves) {
     const { globalWinDetails } = simulateMove(boardState, miniGridWinInfo, botMove.megaCellIdx, botMove.miniCellIdx, player);
     if (globalWinDetails && globalWinDetails.winner === player) {
-      // console.log(`AI Log: Action: Played immediate global win at [${botMove.megaCellIdx},${botMove.miniCellIdx}].`);
-      return botMove;
+      const aiDecisionInfo = "Played immediate global win.";
+      console.log(`AI Log: Action: ${aiDecisionInfo} at [${botMove.megaCellIdx},${botMove.miniCellIdx}].`);
+      return { move: botMove, aiDecisionInfo };
     }
   }
 
   // 2. Check for User's ('X') immediate win to block
   const opponent = player === 'O' ? 'X' : 'O';
-  let moveToBlockUserWin = null;
-
-  // Check all empty cells on the board, not just currently eligible ones for the bot,
-  // to see if the opponent has a winning move there.
   const allEmptyCells = [];
   for (let megaIdx = 0; megaIdx < 9; megaIdx++) {
-    if (!miniGridWinInfo[megaIdx] || !miniGridWinInfo[megaIdx].winner) { // Only consider playable mini-grids
+    if (!miniGridWinInfo[megaIdx] || !miniGridWinInfo[megaIdx].winner) {
         if (!isMiniGridFull(boardState[megaIdx])) {
             for (let miniIdx = 0; miniIdx < 9; miniIdx++) {
                 if (!boardState[megaIdx][miniIdx]) {
@@ -114,28 +111,136 @@ export const getBotMove = (boardState, miniGridWinInfo, activeMegaCellIndex, pla
         }
     }
   }
-
   for (const cell of allEmptyCells) {
     const { globalWinDetails: opponentGlobalWin } = simulateMove(boardState, miniGridWinInfo, cell.megaCellIdx, cell.miniCellIdx, opponent);
     if (opponentGlobalWin && opponentGlobalWin.winner === opponent) {
-      // Opponent can win by playing at (cell.megaCellIdx, cell.miniCellIdx).
-      // Is this cell among Bot's current eligible moves?
       const isBlockableByBot = eligibleMoves.some(
         em => em.megaCellIdx === cell.megaCellIdx && em.miniCellIdx === cell.miniCellIdx
       );
       if (isBlockableByBot) {
-        moveToBlockUserWin = { megaCellIdx: cell.megaCellIdx, miniCellIdx: cell.miniCellIdx };
-        // console.log(`AI Log: Action: Blocked User's potential global win at [${moveToBlockUserWin.megaCellIdx},${moveToBlockUserWin.miniCellIdx}].`);
-        return moveToBlockUserWin;
+        const blockMove = { megaCellIdx: cell.megaCellIdx, miniCellIdx: cell.miniCellIdx };
+        const aiDecisionInfo = "Blocked User's potential global win.";
+        console.log(`AI Log: Action: ${aiDecisionInfo} at [${blockMove.megaCellIdx},${blockMove.miniCellIdx}].`);
+        return { move: blockMove, aiDecisionInfo };
       }
     }
   }
+  // --- End of Phase 2 Immediate Win/Block Logic ---
 
-  // 3. Fallback: Play a random eligible move (Phase 1 logic, improved in Phase 2)
-  // console.log("AI Log: Info: No immediate global win/block found. Playing random move.");
-  const randomMove = eligibleMoves[Math.floor(Math.random() * eligibleMoves.length)];
-  // console.log(`AI Log: Chosen move: [${randomMove.megaCellIdx},${randomMove.miniCellIdx}] (Method: Random)`);
-  return randomMove;
+  // --- Phase 3: Minimax Logic ---
+  console.log("AI Log: Info: No immediate global win/block found. Proceeding to Minimax logic.");
+  let bestScore = -Infinity;
+  let bestMove = null;
+  let consideredMovesLog = {}; 
+
+  const eligibleMovesString = eligibleMoves.map(m => `[${m.megaCellIdx + 1},${m.miniCellIdx + 1}]`).join(', ');
+  console.log(`AI Log: Eligible moves: [${eligibleMovesString}]`);
+
+  for (const move of eligibleMoves) {
+    const simStateAfterBotMove = simulateMove(boardState, miniGridWinInfo, move.megaCellIdx, move.miniCellIdx, player);
+    const nextActiveMegaCellForOpponent = determineNextActiveMegaCell(move.miniCellIdx, simStateAfterBotMove.tempMiniGridWinInfo, simStateAfterBotMove.tempBoardState);
+    const score = minimax(simStateAfterBotMove.tempBoardState, simStateAfterBotMove.tempMiniGridWinInfo, 1, false, nextActiveMegaCellForOpponent, player);
+    
+    consideredMovesLog[`[${move.megaCellIdx},${move.miniCellIdx}]`] = score;
+
+    if (score > bestScore) {
+      bestScore = score;
+      bestMove = move;
+    }
+  }
+
+  if (bestMove) {
+    const sortedConsideredMovesArray = Object.entries(consideredMovesLog)
+      .sort(([,a],[,b]) => b-a); // Sort by score descending
+    
+    // Convert to 1-indexed for the UI log string
+    const allMovesSummary = sortedConsideredMovesArray.map(([moveStr, score]) => {
+      const match = moveStr.match(/\[(\d+),(\d+)\]/);
+      if (match) {
+        const megaIdx = parseInt(match[1], 10);
+        const miniIdx = parseInt(match[2], 10);
+        return `[${megaIdx + 1},${miniIdx + 1}]:${score}`;
+      }
+      return `${moveStr}:${score}`;
+    }).join(', ');
+
+    const aiDecisionInfo = `Minimax (Score: ${bestScore}, Considered: ${allMovesSummary})`;
+    
+    // Log to console just the chosen move and its score (1-indexed for console too)
+    console.log(`AI Log: Chosen Move: [${bestMove.megaCellIdx + 1},${bestMove.miniCellIdx + 1}], Minimax Score: ${bestScore}. Full consideration details in UI Log.`);
+    return { move: bestMove, aiDecisionInfo };
+  } else if (eligibleMoves.length > 0) {
+    const randomFallbackMove = eligibleMoves[Math.floor(Math.random() * eligibleMoves.length)];
+    const aiDecisionInfo = "Random fallback from eligibles after Minimax failure.";
+    console.log(`AI Log: ${aiDecisionInfo} Chosen: [${randomFallbackMove.megaCellIdx + 1},${randomFallbackMove.miniCellIdx + 1}]`);
+    return { move: randomFallbackMove, aiDecisionInfo };
+  }
+
+  const aiDecisionInfo = "No move selected by any logic.";
+  console.log("AI Log: " + aiDecisionInfo);
+  return { move: null, aiDecisionInfo };
+};
+
+// Phase 3: Minimax Algorithm
+const minimax = (boardState, miniGridWinInfo, depth, isMaximizingPlayer, currentActiveMegaCellIndex, playerForMinimax) => {
+  // playerForMinimax is 'O' (bot, maximizer), opponent is 'X' (user, minimizer)
+  const opponentPlayer = playerForMinimax === 'O' ? 'X' : 'O';
+
+  // Check for terminal states (global win/loss/draw) or max depth
+  // First, check for global win based on miniGridWinInfo directly passed into this node of minimax
+  const megaGridCellsForWinCheck = miniGridWinInfo.map(info => info ? info.winner : null);
+  const globalWinCheck = checkWinAndCombination(megaGridCellsForWinCheck);
+
+  if (globalWinCheck) {
+    if (globalWinCheck.winner === playerForMinimax) return Infinity; // Bot wins
+    if (globalWinCheck.winner === opponentPlayer) return -Infinity; // Opponent wins
+  }
+
+  // Get eligible moves for the current player in the simulation
+  const currentPlayerForNode = isMaximizingPlayer ? playerForMinimax : opponentPlayer;
+  const eligibleMoves = getEligibleMoves(boardState, currentActiveMegaCellIndex, miniGridWinInfo);
+
+  // Check for draw (no eligible moves and no global win)
+  if (eligibleMoves.length === 0) {
+    return 0; // Draw or stalemate in this path
+  }
+
+  if (depth === 2) { // Max depth for 2-ply (Bot move -> User move -> Heuristic)
+    return calculate_heuristic_v1(miniGridWinInfo); // Evaluate using heuristic_v1
+  }
+
+  if (isMaximizingPlayer) { // Bot 'O' is maximizing
+    let maxEval = -Infinity;
+    for (const move of eligibleMoves) {
+      // Simulate the bot's move
+      const simState = simulateMove(boardState, miniGridWinInfo, move.megaCellIdx, move.miniCellIdx, playerForMinimax);
+      const nextActiveMegaCell = determineNextActiveMegaCell(move.miniCellIdx, simState.tempMiniGridWinInfo, simState.tempBoardState);
+      
+      const evalScore = minimax(simState.tempBoardState, simState.tempMiniGridWinInfo, depth + 1, false, nextActiveMegaCell, playerForMinimax);
+      maxEval = Math.max(maxEval, evalScore);
+    }
+    return maxEval;
+  } else { // Opponent 'X' is minimizing
+    let minEval = +Infinity;
+    for (const move of eligibleMoves) {
+      // Simulate the opponent's move
+      const simState = simulateMove(boardState, miniGridWinInfo, move.megaCellIdx, move.miniCellIdx, opponentPlayer);
+      const nextActiveMegaCell = determineNextActiveMegaCell(move.miniCellIdx, simState.tempMiniGridWinInfo, simState.tempBoardState);
+
+      const evalScore = minimax(simState.tempBoardState, simState.tempMiniGridWinInfo, depth + 1, true, nextActiveMegaCell, playerForMinimax);
+      minEval = Math.min(minEval, evalScore);
+    }
+    return minEval;
+  }
+};
+
+// Helper to determine the next active mega cell for the simulation
+const determineNextActiveMegaCell = (playedMiniCellIdx, nextMiniGridWinInfo, nextBoardState) => {
+  if ((nextMiniGridWinInfo[playedMiniCellIdx] && nextMiniGridWinInfo[playedMiniCellIdx].winner) || 
+      isMiniGridFull(nextBoardState[playedMiniCellIdx])) {
+    return null; // Next player can play anywhere
+  }
+  return playedMiniCellIdx; // Next player must play in this mega-cell
 };
 
 export const processPlayerMove = (currentBoardState, currentMiniGridWinInfo, currentMegaGridWinInfo, activeMegaCellIndex, currentPlayer, megaCellIdx, miniCellIdx) => {

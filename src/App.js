@@ -50,30 +50,33 @@ function App() {
 
   // useEffect for bot's turn
   useEffect(() => {
-    if (currentPlayer === 'O' && !megaGridWinInfo) { // Check if it's Bot's turn and game is not over
-      // const eligibleMoves = getEligibleMoves(boardState, activeMegaCellIndex, miniGridWinInfo);
-      // if (eligibleMoves.length === 0) {
-      //   return; 
-      // }
+    if (currentPlayer === 'O' && !megaGridWinInfo) { 
+      const botMoveResult = getBotMove(boardState, miniGridWinInfo, activeMegaCellIndex, 'O');
 
-      // Call getBotMove to determine the bot's action
-      const botMove = getBotMove(boardState, miniGridWinInfo, activeMegaCellIndex, 'O');
+      if (botMoveResult && botMoveResult.move) {
+        const { move, aiDecisionInfo } = botMoveResult;
+        // Store aiDecisionInfo to be used after handleCellClick updates states
+        // We can't directly pass it to handleCellClick as it doesn't expect it, 
+        // and we need the state *after* the move for the log entry.
+        // A simple way is to use a ref or a temporary state, but since this effect 
+        // will re-run and handleCellClick is synchronous for state updates (within its scope),
+        // we can leverage this. Let's create the base log string here and append AI info later.
+        
+        // Stash it for use in handleCellClick's logging section
+        // This is a bit of a workaround. A cleaner way might involve passing a callback to handleCellClick
+        // or making handleCellClick also return what it logged, but for now, this is simplest.
+        // Or, more directly, reconstruct the log entry *after* handleCellClick.
+        // For now, let's plan to pass it to handleCellClick, and modify handleCellClick to accept it.
 
-      if (botMove) {
-        // // Artificial delay for bot move (can be introduced later as per Phase 8)
-        // setTimeout(() => {
-        handleCellClick(botMove.megaCellIdx, botMove.miniCellIdx);
-        // }, 500); // Example delay
+        handleCellClick(move.megaCellIdx, move.miniCellIdx, aiDecisionInfo); 
+
       } else {
-        // This case should ideally not be reached if game isn't over, 
-        // as getEligibleMoves (called by getBotMove) should find moves or game is a draw/win.
-        // If it is reached, it implies no moves were possible for the bot.
-        // console.log("AI Log: Bot found no move to make from App.js useEffect.");
+        // This case includes (botMoveResult.move === null)
+        console.log(`AI Log: Bot found no move to make from App.js useEffect. Decision info: ${botMoveResult.aiDecisionInfo}`);
       }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentPlayer, boardState, activeMegaCellIndex, miniGridWinInfo, megaGridWinInfo]); 
-  // Removed handleCellClick from deps for now as it was causing issues before, will re-evaluate if needed or memoize it.
 
   // Load game state from local storage on initial mount (MOVED TO HOOK)
   // useEffect(() => {
@@ -133,7 +136,7 @@ function App() {
     setHoveredCell({ mega: null, mini: null });
   };
 
-  const handleCellClick = (megaCellIdx, miniCellIdx) => {
+  const handleCellClick = (megaCellIdx, miniCellIdx, aiDecisionInfoForLog = null) => {
     // Initial checks: game over, cell already won/taken, or invalid mega-cell target
     if (megaGridWinInfo || 
         (miniGridWinInfo[megaCellIdx] && miniGridWinInfo[megaCellIdx].winner) || 
@@ -196,29 +199,41 @@ function App() {
     
     setHoveredCell({ mega: null, mini: null });
 
-    // Add to game state log
-    // Note: history.length for turn number is based on its length *before* current move was added.
-    // So, history will have the new entry, making its length the correct current turn number.
     const turnNumber = history.length; 
     
-    let boardRepresentation = [];
+    const structuredBoardLog = {};
     for (let mgIdx = 0; mgIdx < 9; mgIdx++) {
-      // Use processedMiniGridWinInfo for accurate representation of board after the move
       const megaWinner = processedMiniGridWinInfo[mgIdx] ? processedMiniGridWinInfo[mgIdx].winner : null;
+      const miniGridLog = [];
       for (let mnIdx = 0; mnIdx < 9; mnIdx++) {
         const cellVal = processedBoardState[mgIdx][mnIdx];
         if (cellVal === 'X') {
-          boardRepresentation.push(megaWinner === 'X' ? 'X' : 'x');
+          miniGridLog.push(megaWinner === 'X' ? 'X' : 'x'); 
         } else if (cellVal === 'O') {
-          boardRepresentation.push(megaWinner === 'O' ? 'O' : 'o');
+          miniGridLog.push(megaWinner === 'O' ? 'O' : 'o');
         } else {
-          boardRepresentation.push('-');
+          miniGridLog.push('-');
         }
       }
+      structuredBoardLog[mgIdx + 1] = miniGridLog; 
     }
-    const boardString = boardRepresentation.join(',');
 
-    const logEntryString = `Turn ${turnNumber}; ${playerMakingTheMove} played [mega ${megaCellIdx}, mini ${miniCellIdx}]; Board: [${boardString}]`;
+    let boardString = "Board: \n{";
+    for (let i = 1; i <= 9; i++) {
+      boardString += `${i}: [${structuredBoardLog[i].join(',')}]`;
+      if (i % 3 === 0) {
+        boardString += (i === 9) ? "}" : ",\n";
+      } else {
+        boardString += ", ";
+      }
+    }
+    
+    let logEntryString = `Turn ${turnNumber}; ${playerMakingTheMove} played [mega ${megaCellIdx + 1}, mini ${miniCellIdx + 1}]`;
+    if (playerMakingTheMove === 'O' && aiDecisionInfoForLog) {
+      logEntryString += `; AI: ${aiDecisionInfoForLog}`;
+    }
+    logEntryString += `; Board: ${boardString}`;
+    
     setGameStateLog(prevLog => [...prevLog, logEntryString]);
   };
 
@@ -340,3 +355,4 @@ function App() {
 }
 
 export default App;
+

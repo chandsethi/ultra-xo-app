@@ -21,7 +21,10 @@ export function Cell({
   onCellMouseEnter, 
   onCellMouseLeave, 
   currentPlayer,
-  isActiveCell
+  isActiveCell,
+  // Blinking props from MiniGrid
+  isBlinkingTarget,
+  blinkShowIcon
 }) {
   const isEmpty = !value;
   const isCurrentlyHovered = megaIndex === hoveredMegaIndex && miniIndex === hoveredMiniIndex;
@@ -33,6 +36,11 @@ export function Cell({
     }
   }
 
+  let showOIcon = true;
+  if (value === 'O' && isBlinkingTarget && !blinkShowIcon) {
+    showOIcon = false;
+  }
+
   return (
     <div 
       className={cellClasses.join(' ')}
@@ -41,7 +49,7 @@ export function Cell({
       onMouseLeave={onCellMouseLeave}
     >
       {value === 'X' && <XIcon color="red" />}
-      {value === 'O' && <OIcon color="blue" />}
+      {value === 'O' && showOIcon && <OIcon color="blue" />}
       {isEmpty && isCurrentlyHovered && isActiveCell && !isSafari() && (
         <div className="hover-preview">
           {currentPlayer === 'X' ? <XIcon customClass="hover-icon" color="red"/> : <OIcon customClass="hover-icon" color="blue"/>}

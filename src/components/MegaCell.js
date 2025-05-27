@@ -12,7 +12,10 @@ export function MegaCell({
   onCellMouseLeave, 
   currentPlayer,
   winInfo,
-  isActiveMegaCell
+  isActiveMegaCell,
+  blinkingCellGlobal,
+  blinkShowIconGlobal,
+  isCurrentlyBlinking
 }) {
   let megaCellClasses = ['mega-cell'];
   if (winInfo && winInfo.winner) {
@@ -44,6 +47,9 @@ export function MegaCell({
         currentPlayer={currentPlayer}
         winInfo={winInfo}
         isActiveMiniGrid={isActiveMegaCell}
+        blinkingCellGlobal={blinkingCellGlobal}
+        blinkShowIconGlobal={blinkShowIconGlobal}
+        isCurrentlyBlinking={isCurrentlyBlinking}
       />
     </div>
   );

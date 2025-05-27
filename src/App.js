@@ -18,10 +18,10 @@ import {
 } from './utils/gameLogic';
 import { TopControls } from './components/TopControls';
 import { LogModal } from './components/LogModal';
-import { usePersistentGameState } from './utils/hooks'; // Import the custom hook
+import { LoadStateModal } from './components/LoadStateModal';
+import { usePersistentGameState } from './utils/hooks';
 
 function App() {
-  // States managed by the custom hook
   const {
     boardState, setBoardState,
     currentPlayer, setCurrentPlayer,
@@ -32,79 +32,29 @@ function App() {
     resetPersistedState
   } = usePersistentGameState();
 
-  // States managed directly by App.js (not persisted or UI-specific)
-  // const initialBoardState = () => Array(9).fill(null).map(() => Array(9).fill(null));
-  // const initialPlayer = 'X';
-  // const initialMiniGridWinInfo = () => Array(9).fill(null);
-  // const initialMegaGridWinInfo = null;
-  // const initialActiveMegaCellIndex = null;
-  // const initialHistory = () => [];
   const initialRedoStack = () => [];
   const initialGameStateLog = () => [];
   const initialShowLogsModal = false;
+  const initialShowLoadStateModal = false;
 
   const [hoveredCell, setHoveredCell] = useState({ mega: null, mini: null });
   const [redoStack, setRedoStack] = useState(initialRedoStack());
   const [gameStateLog, setGameStateLog] = useState(initialGameStateLog());
   const [showLogsModal, setShowLogsModal] = useState(initialShowLogsModal);
+  const [showLoadStateModal, setShowLoadStateModal] = useState(initialShowLoadStateModal);
 
-  // useEffect for bot's turn
   useEffect(() => {
     if (currentPlayer === 'O' && !megaGridWinInfo) { 
       const botMoveResult = getBotMove(boardState, miniGridWinInfo, activeMegaCellIndex, 'O');
 
       if (botMoveResult && botMoveResult.move) {
         const { move, aiDecisionInfo } = botMoveResult;
-        // Store aiDecisionInfo to be used after handleCellClick updates states
-        // We can't directly pass it to handleCellClick as it doesn't expect it, 
-        // and we need the state *after* the move for the log entry.
-        // A simple way is to use a ref or a temporary state, but since this effect 
-        // will re-run and handleCellClick is synchronous for state updates (within its scope),
-        // we can leverage this. Let's create the base log string here and append AI info later.
-        
-        // Stash it for use in handleCellClick's logging section
-        // This is a bit of a workaround. A cleaner way might involve passing a callback to handleCellClick
-        // or making handleCellClick also return what it logged, but for now, this is simplest.
-        // Or, more directly, reconstruct the log entry *after* handleCellClick.
-        // For now, let's plan to pass it to handleCellClick, and modify handleCellClick to accept it.
-
         handleCellClick(move.megaCellIdx, move.miniCellIdx, aiDecisionInfo); 
-
       } else {
-        // This case includes (botMoveResult.move === null)
         console.log(`AI Log: Bot found no move to make from App.js useEffect. Decision info: ${botMoveResult.aiDecisionInfo}`);
       }
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentPlayer, boardState, activeMegaCellIndex, miniGridWinInfo, megaGridWinInfo]); 
-
-  // Load game state from local storage on initial mount (MOVED TO HOOK)
-  // useEffect(() => {
-  //   try {
-  //     const savedGame = localStorage.getItem(LOCAL_STORAGE_KEY);
-  //     if (savedGame) {
-  //       const gameState = JSON.parse(savedGame);
-  //       setBoardState(gameState.boardState || initialBoardState());
-  //       setCurrentPlayer(gameState.currentPlayer || initialPlayer);
-  //       setMiniGridWinInfo(gameState.miniGridWinInfo || initialMiniGridWinInfo());
-  //       setMegaGridWinInfo(gameState.megaGridWinInfo === undefined ? initialMegaGridWinInfo : gameState.megaGridWinInfo); // Allow null
-  //       setActiveMegaCellIndex(gameState.activeMegaCellIndex === undefined ? initialActiveMegaCellIndex : gameState.activeMegaCellIndex); // Allow null
-  //       setHistory(gameState.history || initialHistory());
-  //       // redoStack and gameStateLog should not be loaded from localStorage for debugging purposes
-  //       // setRedoStack(gameState.redoStack || initialRedoStack());
-  //       // setGameStateLog(gameState.gameStateLog || initialGameStateLog());
-  //     }
-  //   } catch (error) {
-  //     console.error("Failed to load game state from local storage:", error);
-  //     // Optionally, clear corrupted storage
-  //     // localStorage.removeItem(LOCAL_STORAGE_KEY);
-  //   }
-  // }, []); // Empty dependency array ensures this runs only once on mount
-
-  // Save game state to local storage whenever it changes (MOVED TO HOOK)
-  // useEffect(() => {
-  //  ...
-  // }, [boardState, currentPlayer, miniGridWinInfo, megaGridWinInfo, activeMegaCellIndex, history]);
 
   useEffect(() => {
     const htmlElement = document.documentElement;
@@ -137,7 +87,6 @@ function App() {
   };
 
   const handleCellClick = (megaCellIdx, miniCellIdx, aiDecisionInfoForLog = null) => {
-    // Initial checks: game over, cell already won/taken, or invalid mega-cell target
     if (megaGridWinInfo || 
         (miniGridWinInfo[megaCellIdx] && miniGridWinInfo[megaCellIdx].winner) || 
         boardState[megaCellIdx][miniCellIdx]) {
@@ -149,26 +98,24 @@ function App() {
 
     const playerMakingTheMove = currentPlayer;
 
-    // Save current state for undo
     setHistory(prevHistory => [...prevHistory, 
       {
-        boardState: JSON.parse(JSON.stringify(boardState)), // Deep copy
+        boardState: JSON.parse(JSON.stringify(boardState)),
         currentPlayer,
-        miniGridWinInfo: JSON.parse(JSON.stringify(miniGridWinInfo)), // Deep copy
-        megaGridWinInfo: megaGridWinInfo ? JSON.parse(JSON.stringify(megaGridWinInfo)) : null, // Deep copy
+        miniGridWinInfo: JSON.parse(JSON.stringify(miniGridWinInfo)),
+        megaGridWinInfo: megaGridWinInfo ? JSON.parse(JSON.stringify(megaGridWinInfo)) : null,
         activeMegaCellIndex
       }
     ]);
-    setRedoStack(initialRedoStack()); // Clear redo stack on new move
+    setRedoStack(initialRedoStack());
 
-    // Get the new state by processing the move
     const { 
       processedBoardState,
       processedMiniGridWinInfo,
       processedMegaGridWinInfo,
       processedActiveMegaCellIndex,
       processedNextPlayer,
-      gameShouldContinue // Renamed from gameContinues for clarity
+      gameShouldContinue
     } = processPlayerMove(
       boardState, 
       miniGridWinInfo, 
@@ -179,7 +126,6 @@ function App() {
       miniCellIdx
     );
 
-    // Update React states
     setBoardState(processedBoardState);
     setMiniGridWinInfo(processedMiniGridWinInfo);
     
@@ -191,15 +137,11 @@ function App() {
       setActiveMegaCellIndex(processedActiveMegaCellIndex);
       setCurrentPlayer(processedNextPlayer);
     } else {
-      // If game does not continue (win/draw), currentPlayer doesn't change from the one who made the winning move.
-      // activeMegaCellIndex might be set to null or handled by megaGridWinInfo presence.
-      // Consider if activeMegaCellIndex needs explicit setting to null on game over.
-      // For now, relying on megaGridWinInfo to stop further moves.
     }
     
     setHoveredCell({ mega: null, mini: null });
 
-    const turnNumber = history.length; 
+    const turnNumber = history.length;
     
     const structuredBoardLog = {};
     for (let mgIdx = 0; mgIdx < 9; mgIdx++) {
@@ -238,77 +180,130 @@ function App() {
   };
 
   const resetGameState = () => {
-    resetPersistedState(); // Reset states managed by the hook
-    // Reset states managed by App.js
+    resetPersistedState();
     setRedoStack(initialRedoStack());
     setGameStateLog(initialGameStateLog());
     setShowLogsModal(initialShowLogsModal);
-    setHoveredCell({ mega: null, mini: null }); // Also reset hover
+    setShowLoadStateModal(initialShowLoadStateModal);
+    setHoveredCell({ mega: null, mini: null });
 
     const htmlElement = document.documentElement;
     htmlElement.classList.remove('cursor-o-default', 'cursor-x-default');
     if (isSafari()) {
-      htmlElement.classList.add('cursor-x-default');
     }
-    // localStorage.removeItem is now handled by resetPersistedState in the hook
   };
 
   const handleUndo = () => {
-    if (history.length === 0) return;
+    if (history.length > 0) {
+      const lastState = history[history.length - 1];
+      setRedoStack(prevRedoStack => [
+        {
+          boardState: JSON.parse(JSON.stringify(boardState)),
+          currentPlayer,
+          miniGridWinInfo: JSON.parse(JSON.stringify(miniGridWinInfo)),
+          megaGridWinInfo: megaGridWinInfo ? JSON.parse(JSON.stringify(megaGridWinInfo)) : null,
+          activeMegaCellIndex,
+        },
+        ...prevRedoStack
+      ]);
 
-    // Capture current state to push to redoStack
-    const currentStateForRedo = {
-      boardState: JSON.parse(JSON.stringify(boardState)),
-      currentPlayer,
-      miniGridWinInfo: JSON.parse(JSON.stringify(miniGridWinInfo)),
-      megaGridWinInfo: megaGridWinInfo ? JSON.parse(JSON.stringify(megaGridWinInfo)) : null,
-      activeMegaCellIndex,
-      // We might also want to save the game log state if undo/redo should affect it
-      // For now, game log will be linear and not affected by undo/redo for simplicity of debugging.
-    };
-    setRedoStack(prevRedoStack => [currentStateForRedo, ...prevRedoStack]);
-
-    const lastState = history[history.length - 1];
-    setBoardState(JSON.parse(JSON.stringify(lastState.boardState))); 
-    setCurrentPlayer(lastState.currentPlayer);
-    setMiniGridWinInfo(JSON.parse(JSON.stringify(lastState.miniGridWinInfo)));
-    setMegaGridWinInfo(lastState.megaGridWinInfo ? JSON.parse(JSON.stringify(lastState.megaGridWinInfo)) : null);
-    setActiveMegaCellIndex(lastState.activeMegaCellIndex);
-    
-    setHistory(prevHistory => prevHistory.slice(0, -1));
-    setHoveredCell({ mega: null, mini: null }); 
-
-    // Log undo action (optional, could also just let the state reflect)
-    // setGameStateLog(prevLog => [...prevLog, { turn: 'Undo', player: 'N/A'}]);
+      setBoardState(lastState.boardState);
+      setCurrentPlayer(lastState.currentPlayer);
+      setMiniGridWinInfo(lastState.miniGridWinInfo);
+      setMegaGridWinInfo(lastState.megaGridWinInfo);
+      setActiveMegaCellIndex(lastState.activeMegaCellIndex);
+      setHistory(prevHistory => prevHistory.slice(0, -1));
+      setGameStateLog(prevLog => prevLog.slice(0, -1));
+    }
   };
 
   const handleRedo = () => {
-    if (redoStack.length === 0) return;
+    if (redoStack.length > 0) {
+      const nextState = redoStack[0];
+      setHistory(prevHistory => [...prevHistory, 
+        {
+          boardState: JSON.parse(JSON.stringify(boardState)),
+          currentPlayer,
+          miniGridWinInfo: JSON.parse(JSON.stringify(miniGridWinInfo)),
+          megaGridWinInfo: megaGridWinInfo ? JSON.parse(JSON.stringify(megaGridWinInfo)) : null,
+          activeMegaCellIndex,
+        }
+      ]);
+      
+      setBoardState(nextState.boardState);
+      setCurrentPlayer(nextState.currentPlayer);
+      setMiniGridWinInfo(nextState.miniGridWinInfo);
+      setMegaGridWinInfo(nextState.megaGridWinInfo);
+      setActiveMegaCellIndex(nextState.activeMegaCellIndex);
+      setRedoStack(prevRedoStack => prevRedoStack.slice(1));
 
-    const stateToRedo = redoStack[0];
+      // Re-log the redone move. This requires knowing the move made.
+      // For simplicity, this part is omitted. A more complex solution would store moves in history.
+      // Or, re-construct log based on state change if AI made the move.
+    }
+  };
 
-    // Push current state to history before redoing
-    setHistory(prevHistory => [...prevHistory, 
-      {
-        boardState: JSON.parse(JSON.stringify(boardState)),
-        currentPlayer,
-        miniGridWinInfo: JSON.parse(JSON.stringify(miniGridWinInfo)),
-        megaGridWinInfo: megaGridWinInfo ? JSON.parse(JSON.stringify(megaGridWinInfo)) : null,
-        activeMegaCellIndex
+  const handleToggleLoadStateModal = () => {
+    setShowLoadStateModal(!showLoadStateModal);
+  };
+
+  const handleLoadState = (gameStateString) => {
+    const newBoardState = Array(9).fill(null).map(() => Array(9).fill(null));
+    let charIndex = 0;
+    for (let i = 0; i < 9; i++) {
+      for (let j = 0; j < 9; j++) {
+        const char = gameStateString[charIndex++];
+        if (char === 'x') newBoardState[i][j] = 'X';
+        else if (char === 'o') newBoardState[i][j] = 'O';
+        else newBoardState[i][j] = null;
       }
-    ]);
+    }
+    setBoardState(newBoardState);
 
-    setBoardState(JSON.parse(JSON.stringify(stateToRedo.boardState)));
-    setCurrentPlayer(stateToRedo.currentPlayer);
-    setMiniGridWinInfo(JSON.parse(JSON.stringify(stateToRedo.miniGridWinInfo)));
-    setMegaGridWinInfo(stateToRedo.megaGridWinInfo ? JSON.parse(JSON.stringify(stateToRedo.megaGridWinInfo)) : null);
-    setActiveMegaCellIndex(stateToRedo.activeMegaCellIndex);
+    const newMiniGridWinInfo = Array(9).fill(null);
+    for (let i = 0; i < 9; i++) {
+      const miniGrid = newBoardState[i];
+      const winCheck = checkWinAndCombination(miniGrid, WINNING_COMBINATIONS, (cell) => cell);
+      if (winCheck) {
+        newMiniGridWinInfo[i] = { winner: winCheck.winner, line: winCheck.line };
+      } else if (isMiniGridFull(miniGrid)) {
+        newMiniGridWinInfo[i] = { winner: 'D', line: null }; // D for Draw
+      }
+    }
+    setMiniGridWinInfo(newMiniGridWinInfo);
 
-    setRedoStack(prevRedoStack => prevRedoStack.slice(1));
+    const mainBoardForMegaWin = newMiniGridWinInfo.map(info => info ? info.winner : null);
+    const megaWinCheck = checkWinAndCombination(mainBoardForMegaWin, WINNING_COMBINATIONS, (cell) => cell);
+    setMegaGridWinInfo(megaWinCheck ? { winner: megaWinCheck.winner, line: megaWinCheck.line, isDraw: false } : null);
+    // Check for global draw if no winner and all relevant megaCells are decided
+    if (!megaWinCheck) {
+        let allDecided = true;
+        for(let i=0; i<9; i++) {
+            if (!newMiniGridWinInfo[i]) { // if a mini-grid is not won or drawn
+                // And if the mega cell is not itself part of a winning line for current player
+                // This logic can get complex, for now, simple check:
+                // If any subgrid is undecided AND not part of a global win, game is not a global draw.
+                allDecided = false;
+                break;
+            }
+        }
+        if (allDecided) {
+             // Check if all mini-grids are full or won
+            const isBoardFullOrAllMiniGridsDecided = newMiniGridWinInfo.every(info => info !== null) && 
+                                                     newBoardState.every((mg, mgIdx) => isMiniGridFull(mg) || newMiniGridWinInfo[mgIdx] !== null);
+            if (isBoardFullOrAllMiniGridsDecided) {
+                setMegaGridWinInfo({ winner: 'D', line: null, isDraw: true });
+            }
+        }
+    }
+
+    setCurrentPlayer('X');
+    setActiveMegaCellIndex(null);
+    setHistory([]); // Clear history and start fresh
+    setRedoStack([]);
+    setGameStateLog([]); // Clear logs
     setHoveredCell({ mega: null, mini: null });
-
-    // Log redo action (optional)
-    // setGameStateLog(prevLog => [...prevLog, { turn: 'Redo', player: 'N/A'}]);
+    setShowLoadStateModal(false); // Close modal
   };
 
   return (
@@ -320,6 +315,8 @@ function App() {
         onRedo={handleRedo}
         canRedo={redoStack.length > 0}
         onShowLogs={() => setShowLogsModal(true)}
+        onToggleLoadStateModal={handleToggleLoadStateModal}
+        isRedoDisabled={redoStack.length === 0}
       />
       <div className={`mega-grid ${megaGridWinInfo ? 'game-over' : ''}`} style={{ position: 'relative'}}>
         {boardState.map((individualMiniGridCells, idx) => (
@@ -349,6 +346,11 @@ function App() {
         show={showLogsModal}
         onClose={() => setShowLogsModal(false)}
         logEntries={gameStateLog}
+      />
+      <LoadStateModal 
+        show={showLoadStateModal}
+        onClose={() => setShowLoadStateModal(false)}
+        onLoadState={handleLoadState}
       />
     </div>
   );

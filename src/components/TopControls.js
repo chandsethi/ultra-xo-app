@@ -6,7 +6,8 @@ export function TopControls({
   canUndo,
   onRedo,
   canRedo,
-  onShowLogs
+  onShowLogs,
+  onToggleLoadStateModal
 }) {
   return (
     <div className="top-controls">
@@ -21,6 +22,9 @@ export function TopControls({
       </button>
       <button onClick={onShowLogs} className="show-logs-button">
         Show Logs
+      </button>
+      <button onClick={onToggleLoadStateModal} className="load-game-state-button">
+        Load Game State
       </button>
     </div>
   );

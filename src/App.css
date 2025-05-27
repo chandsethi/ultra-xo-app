@@ -374,19 +374,17 @@ html.safari-styles .cell.empty.safari-hoverable:hover {
 }
 
 .modal-body {
+  padding: 15px;
+  max-height: 400px; /* Or whatever height you prefer */
   overflow-y: auto;
-  flex-grow: 1; /* Allows body to take remaining space and scroll */
 }
 
 .log-line {
-  margin: 5px 0;
-  padding: 8px;
-  background-color: #f9f9f9;
-  border: 1px solid #eee;
-  border-radius: 4px;
+  margin-bottom: 8px;
   font-family: monospace;
   font-size: 0.9em;
-  word-break: break-all; /* Ensure long board strings wrap */
+  word-break: break-all; /* Helps with very long unbroken strings if any */
+  white-space: pre-wrap; /* This will respect newline characters */
 }
 
 /* Ensure the log button fits in with others */
@@ -405,3 +403,5 @@ html.safari-styles .cell.empty.safari-hoverable:hover {
 .show-logs-button:hover {
   background-color: #5a6268;
 }
+
+/* Styles for LoadStateModal */

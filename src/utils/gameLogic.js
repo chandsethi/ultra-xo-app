@@ -78,6 +78,47 @@ export const calculate_heuristic_v1 = (currentMiniGridWinInfo) => {
   return 10 * (botLocalWins - userLocalWins);
 };
 
+// Phase 4: Heuristic V2 - Adds global board evaluation
+export const calculate_heuristic_v2 = (boardState, currentMiniGridWinInfo, playerToEvaluateFor = 'O') => {
+  let heuristicScore = 0;
+  const opponent = playerToEvaluateFor === 'O' ? 'X' : 'O';
+
+  // 1. Local board scoring (from v1)
+  let botLocalWins = 0;
+  let userLocalWins = 0;
+  for (const winInfo of currentMiniGridWinInfo) {
+    if (winInfo && winInfo.winner === playerToEvaluateFor) {
+      botLocalWins++;
+    } else if (winInfo && winInfo.winner === opponent) {
+      userLocalWins++;
+    }
+  }
+  const localScoreComponent = 10 * (botLocalWins - userLocalWins);
+  heuristicScore += localScoreComponent;
+
+  // 2. Global board scoring
+  // Determine global win status from the currentMiniGridWinInfo
+  const megaGridCellsForWinCheck = currentMiniGridWinInfo.map(info => info ? info.winner : null);
+  const globalWinCheck = checkWinAndCombination(megaGridCellsForWinCheck);
+
+  let globalScoreComponent = 0;
+  if (globalWinCheck) {
+    if (globalWinCheck.winner === playerToEvaluateFor) {
+      globalScoreComponent = 100;
+    } else if (globalWinCheck.winner === opponent) {
+      globalScoreComponent = -100;
+    } else if (globalWinCheck.winner === 'D') { // Global draw from heuristic perspective
+        globalScoreComponent = 0; // Or a small penalty/bonus if desired, but 0 for now
+    }
+  }
+  heuristicScore += globalScoreComponent;
+
+  // Optional: Log the components for debugging if needed within getBotMove later
+  // console.log(`Heuristic v2 for ${playerToEvaluateFor}: Total=${heuristicScore}, Local=${localScoreComponent}, Global=${globalScoreComponent}`);
+
+  return heuristicScore;
+};
+
 export const getBotMove = (boardState, miniGridWinInfo, activeMegaCellIndex, player = 'O') => {
   const eligibleMoves = getEligibleMoves(boardState, activeMegaCellIndex, miniGridWinInfo);
 
@@ -164,10 +205,10 @@ export const getBotMove = (boardState, miniGridWinInfo, activeMegaCellIndex, pla
       return `${moveStr}:${score}`;
     }).join(', ');
 
-    const aiDecisionInfo = `Minimax (Score: ${bestScore}, Considered: ${allMovesSummary})`;
+    const aiDecisionInfo = `Minimax (Heuristic_v2, Score: ${bestScore}, Considered: ${allMovesSummary})`;
     
     // Log to console just the chosen move and its score (1-indexed for console too)
-    console.log(`AI Log: Chosen Move: [${bestMove.megaCellIdx + 1},${bestMove.miniCellIdx + 1}], Minimax Score: ${bestScore}. Full consideration details in UI Log.`);
+    console.log(`AI Log: Chosen Move: [${bestMove.megaCellIdx + 1},${bestMove.miniCellIdx + 1}], Minimax Score (v2): ${bestScore}. Full consideration details in UI Log.`);
     return { move: bestMove, aiDecisionInfo };
   } else if (eligibleMoves.length > 0) {
     const randomFallbackMove = eligibleMoves[Math.floor(Math.random() * eligibleMoves.length)];
@@ -206,7 +247,7 @@ const minimax = (boardState, miniGridWinInfo, depth, isMaximizingPlayer, current
   }
 
   if (depth === 2) { // Max depth for 2-ply (Bot move -> User move -> Heuristic)
-    return calculate_heuristic_v1(miniGridWinInfo); // Evaluate using heuristic_v1
+    return calculate_heuristic_v2(boardState, miniGridWinInfo, playerForMinimax);
   }
 
   if (isMaximizingPlayer) { // Bot 'O' is maximizing

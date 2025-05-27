@@ -119,6 +119,101 @@ export const calculate_heuristic_v2 = (boardState, currentMiniGridWinInfo, playe
   return heuristicScore;
 };
 
+// Phase 5: Helper function to count threats (2 in a row with an empty cell)
+const countThreats = (gridCells, player) => {
+  if (!gridCells) return 0;
+  let threatCount = 0;
+  for (const combination of WINNING_COMBINATIONS) {
+    const [a, b, c] = combination;
+    const cellsInLine = [gridCells[a], gridCells[b], gridCells[c]];
+    
+    const playerCount = cellsInLine.filter(cell => cell === player).length;
+    const emptyCount = cellsInLine.filter(cell => cell === null || cell === undefined).length; // Ensure empty is properly checked
+
+    if (playerCount === 2 && emptyCount === 1) {
+      threatCount++;
+    }
+  }
+  return threatCount;
+};
+
+// Phase 5: Heuristic V3 - Adds threat evaluation
+export const calculate_heuristic_v3 = (boardState, currentMiniGridWinInfo, playerToEvaluateFor = 'O') => {
+  const opponent = playerToEvaluateFor === 'O' ? 'X' : 'O';
+  
+  let localScore = 0;
+  let globalScore = 0;
+  let threatsPlayerScore = 0;
+  let threatsOpponentScore = 0;
+
+  // 1. Local board scoring (from v1/v2 logic)
+  let playerLocalWins = 0;
+  let opponentLocalWins = 0;
+  for (const winInfo of currentMiniGridWinInfo) {
+    if (winInfo && winInfo.winner === playerToEvaluateFor) {
+      playerLocalWins++;
+    } else if (winInfo && winInfo.winner === opponent) {
+      opponentLocalWins++;
+    }
+  }
+  localScore = 10 * (playerLocalWins - opponentLocalWins);
+
+  // 2. Global board scoring (from v2 logic)
+  const megaGridCellsForWinCheck = currentMiniGridWinInfo.map(info => info ? info.winner : null);
+  const globalWinCheck = checkWinAndCombination(megaGridCellsForWinCheck);
+
+  if (globalWinCheck) {
+    if (globalWinCheck.winner === playerToEvaluateFor) {
+      globalScore = 100;
+    } else if (globalWinCheck.winner === opponent) {
+      globalScore = -100;
+    }
+    // If there's a global win, threats on the global board might be irrelevant or could be zeroed out.
+    // For now, we calculate them, but a global win state itself is dominant.
+  }
+
+  // 3. Threat Scoring
+  let totalPlayerThreats = 0;
+  let totalOpponentThreats = 0;
+
+  // 3.1 Local Threats
+  for (let i = 0; i < 9; i++) {
+    // Only count threats in mini-grids that are not yet won
+    if (!currentMiniGridWinInfo[i] || !currentMiniGridWinInfo[i].winner) {
+      totalPlayerThreats += countThreats(boardState[i], playerToEvaluateFor);
+      totalOpponentThreats += countThreats(boardState[i], opponent);
+    }
+  }
+
+  // 3.2 Global Threats
+  // Only count global threats if there isn't a global win yet
+  if (!globalWinCheck) {
+    totalPlayerThreats += countThreats(megaGridCellsForWinCheck, playerToEvaluateFor);
+    totalOpponentThreats += countThreats(megaGridCellsForWinCheck, opponent);
+  }
+  
+  threatsPlayerScore = 5 * totalPlayerThreats;
+  threatsOpponentScore = -5 * totalOpponentThreats; // Penalty for opponent's threats
+
+  const totalScore = localScore + globalScore + threatsPlayerScore + threatsOpponentScore;
+
+  // <<< DEBUG LOGGING START >>>
+  if (true) { // Easy toggle for debugging
+    // console.log(`--- Heuristic v3 Calc for Player: ${playerToEvaluateFor} ---`);\n    // console.log(`  Board State (simplified for mega 3 if action is there): `,\n    //   boardState && boardState[2] ? JSON.stringify(boardState[2]) : 'N/A or other focus');\n    // console.log(`  MiniGridWinInfo (winners): `, currentMiniGridWinInfo.map(info => info ? info.winner : null));\n    // console.log(`  Scores: Total=${totalScore}, Local=${localScore}, Global=${globalScore}, ThreatsPlayer=${threatsPlayerScore}, RawOpponentThreats=${totalOpponentThreats} (penalty: ${threatsOpponentScore})`);\n    // console.log(`--- End Heuristic v3 Calc ---\`);\n  }\n  // <<< DEBUG LOGGING END >>>\n\n  return {\n    score: totalScore,\n    local: localScore,\n    global: globalScore,\n    threatsPlayer: threatsPlayerScore,\n    threatsOpponent: totalOpponentThreats // Storing raw count for opponent, score applies the -5
+  }
+  // <<< DEBUG LOGGING END >>>
+
+  return {
+    score: totalScore,
+    local: localScore,
+    global: globalScore,
+    threatsPlayer: threatsPlayerScore,
+    threatsOpponent: totalOpponentThreats // Storing raw count for opponent, score applies the -5
+  };
+  // Note: The returned object contains components. Minimax will use `score`.
+  // Logging in App.js would need to be adapted if it were to show the full breakdown from getBotMove.
+};
+
 export const getBotMove = (boardState, miniGridWinInfo, activeMegaCellIndex, player = 'O') => {
   const eligibleMoves = getEligibleMoves(boardState, activeMegaCellIndex, miniGridWinInfo);
 
@@ -180,35 +275,42 @@ export const getBotMove = (boardState, miniGridWinInfo, activeMegaCellIndex, pla
   for (const move of eligibleMoves) {
     const simStateAfterBotMove = simulateMove(boardState, miniGridWinInfo, move.megaCellIdx, move.miniCellIdx, player);
     const nextActiveMegaCellForOpponent = determineNextActiveMegaCell(move.miniCellIdx, simStateAfterBotMove.tempMiniGridWinInfo, simStateAfterBotMove.tempBoardState);
-    const score = minimax(simStateAfterBotMove.tempBoardState, simStateAfterBotMove.tempMiniGridWinInfo, 1, false, nextActiveMegaCellForOpponent, player);
+    const moveEvalObject = minimax(simStateAfterBotMove.tempBoardState, simStateAfterBotMove.tempMiniGridWinInfo, 1, false, nextActiveMegaCellForOpponent, player);
     
-    consideredMovesLog[`[${move.megaCellIdx},${move.miniCellIdx}]`] = score;
+    consideredMovesLog[`[${move.megaCellIdx},${move.miniCellIdx}]`] = {
+        score: moveEvalObject.score,
+        local: moveEvalObject.local,
+        global: moveEvalObject.global,
+        threatsPlayer: moveEvalObject.threatsPlayer,
+        threatsOpponent: moveEvalObject.threatsOpponent // This is raw count
+    };
 
-    if (score > bestScore) {
-      bestScore = score;
+    if (moveEvalObject.score > bestScore) {
+      bestScore = moveEvalObject.score;
       bestMove = move;
     }
   }
 
   if (bestMove) {
     const sortedConsideredMovesArray = Object.entries(consideredMovesLog)
-      .sort(([,a],[,b]) => b-a); // Sort by score descending
+      .sort(([,a],[,b]) => b.score - a.score); 
     
-    // Convert to 1-indexed for the UI log string
-    const allMovesSummary = sortedConsideredMovesArray.map(([moveStr, score]) => {
+    const allMovesSummary = sortedConsideredMovesArray.map(([moveStr, evalObj]) => {
       const match = moveStr.match(/\[(\d+),(\d+)\]/);
+      let moveCoords = moveStr;
       if (match) {
         const megaIdx = parseInt(match[1], 10);
         const miniIdx = parseInt(match[2], 10);
-        return `[${megaIdx + 1},${miniIdx + 1}]:${score}`;
+        moveCoords = `[${megaIdx + 1},${miniIdx + 1}]`;
       }
-      return `${moveStr}:${score}`;
+      // L: Local Score, G: Global Score, OT: O's Threat Score, XTc: X's Raw Threat Count
+      return `${moveCoords}:${evalObj.score} (L:${evalObj.local},G:${evalObj.global},OT:${evalObj.threatsPlayer},XTc:${evalObj.threatsOpponent})`;
     }).join(', ');
 
-    const aiDecisionInfo = `Minimax (Heuristic_v2, Score: ${bestScore}, Considered: ${allMovesSummary})`;
+    const aiDecisionInfo = `Minimax (Heuristic_v3, Score: ${bestScore}, Considered: ${allMovesSummary})`;
     
     // Log to console just the chosen move and its score (1-indexed for console too)
-    console.log(`AI Log: Chosen Move: [${bestMove.megaCellIdx + 1},${bestMove.miniCellIdx + 1}], Minimax Score (v2): ${bestScore}. Full consideration details in UI Log.`);
+    console.log(`AI Log: Chosen Move: [${bestMove.megaCellIdx + 1},${bestMove.miniCellIdx + 1}], Minimax Score (v3): ${bestScore}. Full consideration details in UI Log.`);
     return { move: bestMove, aiDecisionInfo };
   } else if (eligibleMoves.length > 0) {
     const randomFallbackMove = eligibleMoves[Math.floor(Math.random() * eligibleMoves.length)];
@@ -247,31 +349,39 @@ const minimax = (boardState, miniGridWinInfo, depth, isMaximizingPlayer, current
   }
 
   if (depth === 2) { // Max depth for 2-ply (Bot move -> User move -> Heuristic)
-    return calculate_heuristic_v2(boardState, miniGridWinInfo, playerForMinimax);
+    const heuristicResult = calculate_heuristic_v3(boardState, miniGridWinInfo, playerForMinimax);
+    // Simple log added here for heuristic output at leaf node
+    console.log(`MINIMAX_HEURISTIC_V3_LEAF_EVAL: Player=${playerForMinimax}, boardState[2]=${JSON.stringify(boardState[2])}, HeuristicOutput=${JSON.stringify(heuristicResult)}`);
+    // Return the full heuristic object instead of just the score
+    return heuristicResult;
   }
 
   if (isMaximizingPlayer) { // Bot 'O' is maximizing
-    let maxEval = -Infinity;
+    let maxEvalObject = { score: -Infinity }; // Initialize with an object
     for (const move of eligibleMoves) {
       // Simulate the bot's move
       const simState = simulateMove(boardState, miniGridWinInfo, move.megaCellIdx, move.miniCellIdx, playerForMinimax);
       const nextActiveMegaCell = determineNextActiveMegaCell(move.miniCellIdx, simState.tempMiniGridWinInfo, simState.tempBoardState);
       
-      const evalScore = minimax(simState.tempBoardState, simState.tempMiniGridWinInfo, depth + 1, false, nextActiveMegaCell, playerForMinimax);
-      maxEval = Math.max(maxEval, evalScore);
+      const evalResultObject = minimax(simState.tempBoardState, simState.tempMiniGridWinInfo, depth + 1, false, nextActiveMegaCell, playerForMinimax);
+      if (evalResultObject.score > maxEvalObject.score) {
+        maxEvalObject = evalResultObject;
+      }
     }
-    return maxEval;
+    return maxEvalObject;
   } else { // Opponent 'X' is minimizing
-    let minEval = +Infinity;
+    let minEvalObject = { score: +Infinity }; // Initialize with an object
     for (const move of eligibleMoves) {
       // Simulate the opponent's move
       const simState = simulateMove(boardState, miniGridWinInfo, move.megaCellIdx, move.miniCellIdx, opponentPlayer);
       const nextActiveMegaCell = determineNextActiveMegaCell(move.miniCellIdx, simState.tempMiniGridWinInfo, simState.tempBoardState);
 
-      const evalScore = minimax(simState.tempBoardState, simState.tempMiniGridWinInfo, depth + 1, true, nextActiveMegaCell, playerForMinimax);
-      minEval = Math.min(minEval, evalScore);
+      const evalResultObject = minimax(simState.tempBoardState, simState.tempMiniGridWinInfo, depth + 1, true, nextActiveMegaCell, playerForMinimax);
+      if (evalResultObject.score < minEvalObject.score) {
+        minEvalObject = evalResultObject;
+      }
     }
-    return minEval;
+    return minEvalObject;
   }
 };
 

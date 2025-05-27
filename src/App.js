@@ -21,6 +21,8 @@ import { LogModal } from './components/LogModal';
 import { LoadStateModal } from './components/LoadStateModal';
 import { usePersistentGameState } from './utils/hooks';
 
+const IS_DEVELOPMENT_MODE = false; // Manually toggle this for dev/prod
+
 function App() {
   const {
     boardState, setBoardState,
@@ -471,6 +473,7 @@ function App() {
         onShowLogs={() => setShowLogsModal(true)}
         onToggleLoadStateModal={handleToggleLoadStateModal}
         isRedoDisabled={redoStack.length === 0}
+        showDevControls={IS_DEVELOPMENT_MODE}
       />
       <div className={`mega-grid ${megaGridWinInfo ? 'game-over' : ''}`} style={{ position: 'relative'}}>
         {boardState.map((individualMiniGridCells, idx) => (

@@ -20,8 +20,9 @@ import { TopControls } from './components/TopControls';
 import { LogModal } from './components/LogModal';
 import { LoadStateModal } from './components/LoadStateModal';
 import { usePersistentGameState } from './utils/hooks';
+import ShareSection from './components/ShareSection';
 
-const IS_DEVELOPMENT_MODE = false; // Manually toggle this for dev/prod
+const IS_DEVELOPMENT_MODE = true; // Manually toggle this for dev/prod
 
 function App() {
   const {
@@ -44,6 +45,7 @@ function App() {
   const [gameStateLog, setGameStateLog] = useState(initialGameStateLog());
   const [showLogsModal, setShowLogsModal] = useState(initialShowLogsModal);
   const [showLoadStateModal, setShowLoadStateModal] = useState(initialShowLoadStateModal);
+  const [showShareSection, setShowShareSection] = useState(false);
 
   // State for blinking animation
   const [blinkingCell, setBlinkingCell] = useState({ mega: null, mini: null });
@@ -229,6 +231,16 @@ function App() {
     };
   }, [currentPlayer, megaGridWinInfo]);
 
+  useEffect(() => {
+    if (megaGridWinInfo) {
+      // Check if the game has ended (win, loss, or draw)
+      // 'D' is for Draw, 'X' for X win, 'O' for O win
+      if (megaGridWinInfo.winner === 'X' || megaGridWinInfo.winner === 'O' || megaGridWinInfo.winner === 'D') {
+        setShowShareSection(true);
+      }
+    }
+  }, [megaGridWinInfo]);
+
   const handleCellMouseEnter = (mega, mini) => {
     if (isBlinking) return;
     if (megaGridWinInfo || (miniGridWinInfo[mega] && miniGridWinInfo[mega].winner)) return;
@@ -347,6 +359,7 @@ function App() {
     htmlElement.classList.remove('cursor-o-default', 'cursor-x-default');
     if (isSafari()) {
     }
+    setShowShareSection(false);
   };
 
   const handleUndo = () => {
@@ -462,6 +475,43 @@ function App() {
     setShowLoadStateModal(false); // Close modal
   };
 
+  // Handlers for ShareSection
+  const handleCopyToClipboard = (text) => {
+    navigator.clipboard.writeText(text).then(() => {
+      alert('Copied to clipboard!');
+    }).catch(err => {
+      console.error('Failed to copy text: ', err);
+    });
+  };
+
+  // Twitter anker tag handles the tweet
+  const handleTweet = () => {};
+
+  const getMegaGridStateForShare = () => {
+    // megaGridWinInfo provides the winner for each mini-grid
+    // If a mini-grid is not won, it implies it might be ongoing or empty from the mega perspective.
+    // The requirement is ❌ for red cross (X win), 🔵 for blue O (O win), ➖ for empty mega cells.
+    // This translates to the winner of each mini-grid.
+    const megaGridEmojis = [];
+    for (let i = 0; i < 3; i++) {
+      const row = [];
+      for (let j = 0; j < 3; j++) {
+        const megaCellIndex = i * 3 + j;
+        const miniWin = miniGridWinInfo[megaCellIndex];
+        if (miniWin && miniWin.winner === 'X') {
+          row.push('X');
+        } else if (miniWin && miniWin.winner === 'O') {
+          row.push('O');
+        } else {
+          // If no winner, or winner is Draw ('D'), consider it empty for the share emoji grid
+          row.push(null); 
+        }
+      }
+      megaGridEmojis.push(row);
+    }
+    return megaGridEmojis;
+  };
+
   return (
     <div className="app-container">
       <TopControls 
@@ -475,32 +525,42 @@ function App() {
         isRedoDisabled={redoStack.length === 0}
         showDevControls={IS_DEVELOPMENT_MODE}
       />
-      <div className={`mega-grid ${megaGridWinInfo ? 'game-over' : ''}`} style={{ position: 'relative'}}>
-        {boardState.map((individualMiniGridCells, idx) => (
-          <MegaCell 
-            key={idx} 
-            megaCellIndex={idx} 
-            miniGridCells={individualMiniGridCells} 
-            onCellClick={handleCellClick} 
-            hoveredMegaIndex={hoveredCell.mega}
-            hoveredMiniIndex={hoveredCell.mini}
-            onCellMouseEnter={handleCellMouseEnter}
-            onCellMouseLeave={handleCellMouseLeave}
-            currentPlayer={currentPlayer}
-            winInfo={miniGridWinInfo[idx]} 
-            isActiveMegaCell={activeMegaCellIndex === null || activeMegaCellIndex === idx}
-            // Blinking props for MegaCell to pass to Cell
-            blinkingCellGlobal={blinkingCell} // Use a different prop name to avoid conflict if MegaCell itself had a 'blinkingCell' concept
-            blinkShowIconGlobal={blinkShowIcon}
-            isCurrentlyBlinking={isBlinking}
+      <div style={{ display: 'flex', justifyContent: 'center' }}>
+        <div className={`mega-grid ${megaGridWinInfo ? 'game-over' : ''}`} style={{ position: 'relative'}}>
+          {boardState.map((individualMiniGridCells, idx) => (
+            <MegaCell 
+              key={idx} 
+              megaCellIndex={idx} 
+              miniGridCells={individualMiniGridCells} 
+              onCellClick={handleCellClick} 
+              hoveredMegaIndex={hoveredCell.mega}
+              hoveredMiniIndex={hoveredCell.mini}
+              onCellMouseEnter={handleCellMouseEnter}
+              onCellMouseLeave={handleCellMouseLeave}
+              currentPlayer={currentPlayer}
+              winInfo={miniGridWinInfo[idx]} 
+              isActiveMegaCell={activeMegaCellIndex === null || activeMegaCellIndex === idx}
+              // Blinking props for MegaCell to pass to Cell
+              blinkingCellGlobal={blinkingCell} // Use a different prop name to avoid conflict if MegaCell itself had a 'blinkingCell' concept
+              blinkShowIconGlobal={blinkShowIcon}
+              isCurrentlyBlinking={isBlinking}
+            />
+          ))}
+          {megaGridWinInfo && 
+            <WinningLine 
+              combination={megaGridWinInfo.combination} 
+              gridType="mega" 
+              winner={megaGridWinInfo.winner} 
+            />}
+        </div>
+        {showShareSection && megaGridWinInfo && (
+          <ShareSection 
+            gameResult={megaGridWinInfo.winner} 
+            turns={history.length} // Number of turns is the length of the history
+            megaGridState={getMegaGridStateForShare()} 
+            onTweet={handleTweet} // The tweet is handled by the anchor tag itself
           />
-        ))}
-        {megaGridWinInfo && 
-          <WinningLine 
-            combination={megaGridWinInfo.combination} 
-            gridType="mega" 
-            winner={megaGridWinInfo.winner} 
-          />}
+        )}
       </div>
       <Analytics />
       <LogModal 

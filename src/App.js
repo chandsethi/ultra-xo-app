@@ -47,6 +47,7 @@ function App() {
   const [showLogsModal, setShowLogsModal] = useState(initialShowLogsModal);
   const [showLoadStateModal, setShowLoadStateModal] = useState(initialShowLoadStateModal);
   const [showShareSection, setShowShareSection] = useState(false);
+  const [lastBotMoveDetails, setLastBotMoveDetails] = useState('');
 
   // State for blinking animation
   const [blinkingCell, setBlinkingCell] = useState({ mega: null, mini: null });
@@ -159,6 +160,15 @@ function App() {
         logEntryString += `; Board: ${boardString}`;
         setGameStateLog(prevLog => [...prevLog, logEntryString]);
         
+        // ---- Create the string for DevControls ----
+        let botMoveDisplayString = `Turn ${turnNumber}; O played [mega ${move.megaCellIdx + 1}, mini ${move.miniCellIdx + 1}];`;
+        if (aiDecisionInfo) {
+          // Concatenate strings to avoid issues with special characters in aiDecisionInfo within a template literal.
+          botMoveDisplayString = botMoveDisplayString + " AI: " + aiDecisionInfo;
+        }
+        setLastBotMoveDetails(aiDecisionInfo);
+        // ---- End of creating string for DevControls ----
+        
         // Start blinking
         setBlinkingCell({ mega: move.megaCellIdx, mini: move.miniCellIdx });
         setIsBlinking(true);
@@ -255,7 +265,7 @@ function App() {
     setHoveredCell({ mega: null, mini: null });
   };
 
-  const handleCellClick = (megaCellIdx, miniCellIdx, aiDecisionInfoForLog = null) => {
+  const handleCellClick = useCallback(async (megaCellIdx, miniCellIdx, isBotMove = false, botDecisionInfo = null) => {
     // Prevent user clicks if it's O's turn and blinking, or game over
     if ((currentPlayer === 'O' && isBlinking) || megaGridWinInfo) return;
 
@@ -287,7 +297,7 @@ function App() {
       processedMegaGridWinInfo,
       processedActiveMegaCellIndex,
       processedNextPlayer,
-      gameShouldContinue
+      gameShouldContinue: newGameShouldContinue
     } = processPlayerMove(
       boardState, 
       miniGridWinInfo, 
@@ -305,7 +315,7 @@ function App() {
       setMegaGridWinInfo(processedMegaGridWinInfo);
     }
 
-    if (gameShouldContinue) {
+    if (newGameShouldContinue) {
       setActiveMegaCellIndex(processedActiveMegaCellIndex);
       setCurrentPlayer(processedNextPlayer);
     } else {
@@ -313,34 +323,41 @@ function App() {
     
     setHoveredCell({ mega: null, mini: null });
 
-    const turnNumber = history.length;
+    const turnNumber = gameStateLog.length + 1;
     
-    // Only construct log for human player here
-    if (playerMakingTheMove === 'X') {
-      const structuredBoardLog = {};
-      for (let mgIdx = 0; mgIdx < 9; mgIdx++) {
-        const megaWinner = processedMiniGridWinInfo[mgIdx] ? processedMiniGridWinInfo[mgIdx].winner : null;
-        const miniGridLog = [];
-        for (let mnIdx = 0; mnIdx < 9; mnIdx++) {
-          const cellVal = processedBoardState[mgIdx][mnIdx];
-          if (cellVal === 'X') miniGridLog.push(megaWinner === 'X' ? 'X' : 'x'); 
-          else if (cellVal === 'O') miniGridLog.push(megaWinner === 'O' ? 'O' : 'o');
-          else miniGridLog.push('-');
-        }
-        structuredBoardLog[mgIdx + 1] = miniGridLog; 
-      }
-      let boardString = "Board: \n{";
-      for (let i = 1; i <= 9; i++) {
-        boardString += `${i}: [${structuredBoardLog[i].join(',')}]`;
-        if (i % 3 === 0) boardString += (i === 9) ? "}" : ",\n";
-        else boardString += ", ";
-      }
-      let logEntryString = `Turn ${turnNumber}; ${playerMakingTheMove} played [mega ${megaCellIdx + 1}, mini ${miniCellIdx + 1}]`;
-      // aiDecisionInfoForLog is for bot, human moves don't have it here.
-      logEntryString += `; Board: ${boardString}`;
-      setGameStateLog(prevLog => [...prevLog, logEntryString]);
+    let logEntryForThisTurn;
+
+    if (isBotMove && botDecisionInfo) {
+      // For bot moves, botDecisionInfo is the already formatted detailed log.
+      // The turn number is already incorporated into botDecisionInfo by formatAiDecisionInfo.
+      logEntryForThisTurn = botDecisionInfo;
+    } else if (!isBotMove) {
+      // For human moves, construct the simpler log as before.
+      const playerSymbol = currentPlayer;
+      // Create a simple board string for human moves if needed for older log format, or phase out.
+      // For consistency, human moves could also adopt a more structured log object later.
+      logEntryForThisTurn = `Turn ${turnNumber}; ${playerSymbol} played [mega ${megaCellIdx + 1}, mini ${miniCellIdx + 1}]`;
     }
-  };
+
+    const newHistoryEntry = {
+      boardState: processedBoardState,
+      currentPlayer: processedNextPlayer,
+      miniGridWinInfo: processedMiniGridWinInfo,
+      megaGridWinInfo: processedMegaGridWinInfo,
+      activeMegaCellIndex: processedActiveMegaCellIndex,
+      gameShouldContinue: newGameShouldContinue,
+      // Log for this move is now more detailed for bot
+      log: logEntryForThisTurn 
+    };
+
+    setHistory(prevHistory => [...prevHistory, newHistoryEntry]);
+    // Add the constructed log entry to gameStateLog
+    if (logEntryForThisTurn) {
+      setGameStateLog(prevLogs => [...prevLogs, logEntryForThisTurn]);
+    }
+    setRedoStack([]); // Clear redo stack on new move
+
+  }, [boardState, currentPlayer, miniGridWinInfo, megaGridWinInfo, activeMegaCellIndex, history, gameStateLog, processPlayerMove]);
 
   const resetGameState = () => {
     resetPersistedState();
@@ -572,6 +589,7 @@ function App() {
           canRedo={redoStack.length > 0}
           onShowLogs={() => setShowLogsModal(true)}
           onToggleLoadStateModal={handleToggleLoadStateModal}
+          lastBotMoveDetails={lastBotMoveDetails}
         />
       )}
     </div>

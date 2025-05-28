@@ -140,78 +140,79 @@ const countThreats = (gridCells, player) => {
 // Phase 5: Heuristic V3 - Adds threat evaluation
 export const calculate_heuristic_v3 = (boardState, currentMiniGridWinInfo, playerToEvaluateFor = 'O') => {
   const opponent = playerToEvaluateFor === 'O' ? 'X' : 'O';
-  
-  let localScore = 0;
-  let globalScore = 0;
-  let threatsPlayerScore = 0;
-  let threatsOpponentScore = 0;
 
-  // 1. Local board scoring (from v1/v2 logic)
-  let playerLocalWins = 0;
-  let opponentLocalWins = 0;
+  // Weights
+  const W_O_MINI = 10;
+  const W_X_MINI = -10; // Penalty for opponent winning a mini board
+  const W_MEGA_DIFF = 100;
+  const W_O_MINI_THREAT = 2;
+  const W_O_MEGA_THREAT = 5;
+  const W_X_MINI_THREAT = -2;
+  const W_X_MEGA_THREAT = -5;
+
+  // --- Component Calculation ---
+  let o_mini_wins_raw = 0;
+  let x_mini_wins_raw = 0;
   for (const winInfo of currentMiniGridWinInfo) {
     if (winInfo && winInfo.winner === playerToEvaluateFor) {
-      playerLocalWins++;
+      o_mini_wins_raw++;
     } else if (winInfo && winInfo.winner === opponent) {
-      opponentLocalWins++;
+      x_mini_wins_raw++;
     }
   }
-  localScore = 10 * (playerLocalWins - opponentLocalWins);
 
-  // 2. Global board scoring (from v2 logic)
   const megaGridCellsForWinCheck = currentMiniGridWinInfo.map(info => info ? info.winner : null);
   const globalWinCheck = checkWinAndCombination(megaGridCellsForWinCheck);
-
+  let mega_diff_raw = 0;
   if (globalWinCheck) {
-    if (globalWinCheck.winner === playerToEvaluateFor) {
-      globalScore = 100;
-    } else if (globalWinCheck.winner === opponent) {
-      globalScore = -100;
-    }
-    // If there's a global win, threats on the global board might be irrelevant or could be zeroed out.
-    // For now, we calculate them, but a global win state itself is dominant.
+    if (globalWinCheck.winner === playerToEvaluateFor) mega_diff_raw = 1;
+    else if (globalWinCheck.winner === opponent) mega_diff_raw = -1;
   }
 
-  // 3. Threat Scoring
-  let totalPlayerThreats = 0;
-  let totalOpponentThreats = 0;
-
-  // 3.1 Local Threats
+  let o_mini_threat_raw = 0;
+  let x_mini_threat_raw = 0;
   for (let i = 0; i < 9; i++) {
-    // Only count threats in mini-grids that are not yet won
     if (!currentMiniGridWinInfo[i] || !currentMiniGridWinInfo[i].winner) {
-      totalPlayerThreats += countThreats(boardState[i], playerToEvaluateFor);
-      totalOpponentThreats += countThreats(boardState[i], opponent);
+      o_mini_threat_raw += countThreats(boardState[i], playerToEvaluateFor);
+      x_mini_threat_raw += countThreats(boardState[i], opponent);
     }
   }
 
-  // 3.2 Global Threats
-  // Only count global threats if there isn't a global win yet
-  if (!globalWinCheck) {
-    totalPlayerThreats += countThreats(megaGridCellsForWinCheck, playerToEvaluateFor);
-    totalOpponentThreats += countThreats(megaGridCellsForWinCheck, opponent);
+  let o_mega_threat_raw = 0;
+  let x_mega_threat_raw = 0;
+  if (!globalWinCheck) { // Only count global threats if game not over
+    o_mega_threat_raw = countThreats(megaGridCellsForWinCheck, playerToEvaluateFor);
+    x_mega_threat_raw = countThreats(megaGridCellsForWinCheck, opponent);
   }
-  
-  threatsPlayerScore = 5 * totalPlayerThreats;
-  threatsOpponentScore = -5 * totalOpponentThreats; // Penalty for opponent's threats
 
-  const totalScore = localScore + globalScore + threatsPlayerScore + threatsOpponentScore;
+  // --- Weighted Scores ---
+  const oMiniScore = W_O_MINI * o_mini_wins_raw;
+  const xMiniScore = W_X_MINI * x_mini_wins_raw; // W_X_MINI is already negative
+  const megaScore = W_MEGA_DIFF * mega_diff_raw;
+  const oMiniThreatScore = W_O_MINI_THREAT * o_mini_threat_raw;
+  const oMegaThreatScore = W_O_MEGA_THREAT * o_mega_threat_raw;
+  const xMiniThreatScore = W_X_MINI_THREAT * x_mini_threat_raw;
+  const xMegaThreatScore = W_X_MEGA_THREAT * x_mega_threat_raw;
 
-  // <<< DEBUG LOGGING START >>>
-  if (true) { // Easy toggle for debugging
-    // console.log(`--- Heuristic v3 Calc for Player: ${playerToEvaluateFor} ---`);\n    // console.log(`  Board State (simplified for mega 3 if action is there): `,\n    //   boardState && boardState[2] ? JSON.stringify(boardState[2]) : 'N/A or other focus');\n    // console.log(`  MiniGridWinInfo (winners): `, currentMiniGridWinInfo.map(info => info ? info.winner : null));\n    // console.log(`  Scores: Total=${totalScore}, Local=${localScore}, Global=${globalScore}, ThreatsPlayer=${threatsPlayerScore}, RawOpponentThreats=${totalOpponentThreats} (penalty: ${threatsOpponentScore})`);\n    // console.log(`--- End Heuristic v3 Calc ---\`);\n  }\n  // <<< DEBUG LOGGING END >>>\n\n  return {\n    score: totalScore,\n    local: localScore,\n    global: globalScore,\n    threatsPlayer: threatsPlayerScore,\n    threatsOpponent: totalOpponentThreats // Storing raw count for opponent, score applies the -5
-  }
-  // <<< DEBUG LOGGING END >>>
+  const totalScore = oMiniScore + xMiniScore + megaScore + 
+                     oMiniThreatScore + oMegaThreatScore + 
+                     xMiniThreatScore + xMegaThreatScore;
 
   return {
     score: totalScore,
-    local: localScore,
-    global: globalScore,
-    threatsPlayer: threatsPlayerScore,
-    threatsOpponent: totalOpponentThreats // Storing raw count for opponent, score applies the -5
+    components: {
+      Omini: o_mini_wins_raw,
+      Xmini: x_mini_wins_raw,
+      mega: mega_diff_raw,
+      Omini_threat: o_mini_threat_raw,
+      Omega_threat: o_mega_threat_raw,
+      Xmini_threat: x_mini_threat_raw,
+      Xmega_threat: x_mega_threat_raw
+    },
+    // Storing individual weighted scores can be useful for detailed logging if needed later,
+    // but the primary need for logging is raw components + final score + overall weights list.
+    // For now, the `weights` object will be constructed in getBotMove/formatAiDecisionInfo.
   };
-  // Note: The returned object contains components. Minimax will use `score`.
-  // Logging in App.js would need to be adapted if it were to show the full breakdown from getBotMove.
 };
 
 // Placeholder for Phase 6: Tie-breaking helper
@@ -353,7 +354,7 @@ const is_fork = (localBoardCells, player, moveMiniCellIdx) => {
   return threatsAfterMove >= 2;
 };
 
-export const getBotMove = (boardState, miniGridWinInfo, activeMegaCellIndex, player = 'O') => {
+export const getBotMove = (boardState, miniGridWinInfo, activeMegaCellIndex, player = 'O', turnNumber) => {
   const eligibleMoves = getEligibleMoves(boardState, activeMegaCellIndex, miniGridWinInfo);
 
   if (eligibleMoves.length === 0) {
@@ -361,20 +362,38 @@ export const getBotMove = (boardState, miniGridWinInfo, activeMegaCellIndex, pla
     return { move: null, aiDecisionInfo: "No eligible moves." }; 
   }
 
-  let aiDecisionType = ""; // To be populated by win, block, minimax, or tie-breaker
+  let topReason = "Best move determined by Minimax"; // Default reason
+  let tieBreakerReason = "N/A";
+  let bestMove = null;
+  let anticipatedReplyMove = null;
+  let finalScore = 0;
+  let bestMoveComponentList = {};
+  let bestMoveWeightedScores = {};
+  let otherMovesConsideredLog = "";
 
-  // --- Phase 2 Logic: Immediate Global Win/Loss Detection (Keep this check first) ---
-  // 1. Check for Bot's ('O') immediate win
+  const currentWeights = {
+    Omini: 10,
+    Xmini: -10,
+    mega: 100,
+    Omini_threat: 2,
+    Omega_threat: 5,
+    Xmini_threat: -2,
+    Xmega_threat: -5
+  };
+
+  // --- Phase 2 Logic: Immediate Global Win/Loss Detection ---
   for (const botMove of eligibleMoves) {
     const { globalWinDetails } = simulateMove(boardState, miniGridWinInfo, botMove.megaCellIdx, botMove.miniCellIdx, player);
     if (globalWinDetails && globalWinDetails.winner === player) {
-      aiDecisionType = "Played immediate global win.";
-      console.log(`AI Log: Action: ${aiDecisionType} at [${botMove.megaCellIdx + 1},${botMove.miniCellIdx + 1}].`);
-      return { move: botMove, aiDecisionInfo: aiDecisionType };
+      topReason = "Wins mega board (global game)";
+      bestMove = botMove;
+      finalScore = Infinity;
+      bestMoveComponentList = { Omini: 0, Xmini: 0, mega: 1, Omini_threat: 0, Omega_threat: 0, Xmini_threat: 0, Xmega_threat: 0 }; 
+      console.log(`AI Log: Action: ${topReason} at [${botMove.megaCellIdx + 1},${botMove.miniCellIdx + 1}].`);
+      return formatAiDecisionInfo(turnNumber, player, bestMove, topReason, tieBreakerReason, anticipatedReplyMove, finalScore, bestMoveComponentList, currentWeights, otherMovesConsideredLog);
     }
   }
 
-  // 2. Check for User's ('X') immediate win to block
   const opponent = player === 'O' ? 'X' : 'O';
   const allEmptyCells = [];
   for (let megaIdx = 0; megaIdx < 9; megaIdx++) {
@@ -388,6 +407,7 @@ export const getBotMove = (boardState, miniGridWinInfo, activeMegaCellIndex, pla
         }
     }
   }
+
   for (const cell of allEmptyCells) {
     const { globalWinDetails: opponentGlobalWin } = simulateMove(boardState, miniGridWinInfo, cell.megaCellIdx, cell.miniCellIdx, opponent);
     if (opponentGlobalWin && opponentGlobalWin.winner === opponent) {
@@ -395,10 +415,12 @@ export const getBotMove = (boardState, miniGridWinInfo, activeMegaCellIndex, pla
         em => em.megaCellIdx === cell.megaCellIdx && em.miniCellIdx === cell.miniCellIdx
       );
       if (isBlockableByBot) {
-        const blockMove = { megaCellIdx: cell.megaCellIdx, miniCellIdx: cell.miniCellIdx };
-        aiDecisionType = "Blocked User's potential global win.";
-        console.log(`AI Log: Action: ${aiDecisionType} at [${blockMove.megaCellIdx + 1},${blockMove.miniCellIdx + 1}].`);
-        return { move: blockMove, aiDecisionInfo: aiDecisionType };
+        topReason = "Blocks losing mega board (global game)";
+        bestMove = { megaCellIdx: cell.megaCellIdx, miniCellIdx: cell.miniCellIdx };
+        finalScore = -Infinity; 
+        bestMoveComponentList = { Omini: 0, Xmini: 0, mega: -1, Omini_threat: 0, Omega_threat: 0, Xmini_threat: 0, Xmega_threat: 0 }; 
+        console.log(`AI Log: Action: ${topReason} at [${bestMove.megaCellIdx + 1},${bestMove.miniCellIdx + 1}].`);
+        return formatAiDecisionInfo(turnNumber, player, bestMove, topReason, tieBreakerReason, anticipatedReplyMove, finalScore, bestMoveComponentList, currentWeights, otherMovesConsideredLog);
       }
     }
   }
@@ -407,7 +429,7 @@ export const getBotMove = (boardState, miniGridWinInfo, activeMegaCellIndex, pla
   // --- Minimax Logic ---
   console.log("AI Log: Info: No immediate global win/block found. Proceeding to Minimax logic.");
   
-  let allEvaluatedMoves = []; // Stores { move, evalObject } for each eligible move
+  let allEvaluatedMoves = []; 
 
   const eligibleMovesString = eligibleMoves.map(m => `[${m.megaCellIdx + 1},${m.miniCellIdx + 1}]`).join(', ');
   console.log(`AI Log: Eligible moves: [${eligibleMovesString}]`);
@@ -415,144 +437,203 @@ export const getBotMove = (boardState, miniGridWinInfo, activeMegaCellIndex, pla
   for (const move of eligibleMoves) {
     const simStateAfterBotMove = simulateMove(boardState, miniGridWinInfo, move.megaCellIdx, move.miniCellIdx, player);
     const nextActiveMegaCellForOpponent = determineNextActiveMegaCell(move.miniCellIdx, simStateAfterBotMove.tempMiniGridWinInfo, simStateAfterBotMove.tempBoardState);
+    // The 'move' from minimax here is the bot's move that led to this evaluation path.
+    // The 'anticipatedReply' is the opponent's move.
     const moveEvalObject = minimax(simStateAfterBotMove.tempBoardState, simStateAfterBotMove.tempMiniGridWinInfo, 1, false, nextActiveMegaCellForOpponent, player);
     
     allEvaluatedMoves.push({
-        move: move,
-        eval: moveEvalObject // Store the full object: { score, local, global, threatsPlayer, threatsOpponent }
+        move: move, // This is the bot's potential move
+        eval: moveEvalObject // Contains score, components, weightedScores, and anticipatedReply from opponent
     });
   }
 
   if (allEvaluatedMoves.length === 0 && eligibleMoves.length > 0) {
-    // This case should ideally not be reached if minimax runs for all eligible moves
-    // But as a fallback if something unexpected happens before tie-breaking.
     const randomFallbackMove = eligibleMoves[Math.floor(Math.random() * eligibleMoves.length)];
-    aiDecisionType = "Random fallback (Minimax produced no evaluated moves).";
-    console.log(`AI Log: ${aiDecisionType} Chosen: [${randomFallbackMove.megaCellIdx + 1},${randomFallbackMove.miniCellIdx + 1}]`);
-    return { move: randomFallbackMove, aiDecisionInfo: aiDecisionType };
+    topReason = "Random fallback (Minimax produced no evaluated moves).";
+    bestMove = randomFallbackMove;
+    console.log(`AI Log: ${topReason} Chosen: [${bestMove.megaCellIdx + 1},${bestMove.miniCellIdx + 1}]`);
+    return formatAiDecisionInfo(turnNumber, player, bestMove, topReason, tieBreakerReason, null, 0, {}, currentWeights, "");
   }
   
   if (allEvaluatedMoves.length === 0 && eligibleMoves.length === 0) {
-    // This should have been caught by the initial eligibleMoves.length === 0 check, but defensive coding.
-     aiDecisionType = "No eligible moves were found at the start of Minimax phase.";
-     console.log("AI Log: " + aiDecisionType);
-     return { move: null, aiDecisionInfo: aiDecisionType };
+     topReason = "No eligible moves were found at the start of Minimax phase.";
+     console.log("AI Log: " + topReason);
+     return formatAiDecisionInfo(turnNumber, player, null, topReason, tieBreakerReason, null, 0, {}, currentWeights, "");
   }
 
-  // Sort all evaluated moves by score descending to easily get best score and for logging
   allEvaluatedMoves.sort((a, b) => b.eval.score - a.eval.score);
 
-  const bestScore = allEvaluatedMoves[0].eval.score;
-  const topScoringMoves = allEvaluatedMoves.filter(m => m.eval.score === bestScore);
+  const bestScoreFromMinimax = allEvaluatedMoves[0].eval.score;
+  const topScoringMoves = allEvaluatedMoves.filter(m => m.eval.score === bestScoreFromMinimax);
 
-  let bestMoveObject; // This will be { move, ruleApplied }
-  let chosenMove;
+  let chosenMoveObject;
 
   if (topScoringMoves.length === 1) {
-    bestMoveObject = { move: topScoringMoves[0].move, ruleApplied: "Minimax (Heuristic_v3)" };
-    aiDecisionType = bestMoveObject.ruleApplied;
+    chosenMoveObject = { move: topScoringMoves[0].move, ruleApplied: "Minimax Highest Score" };
+    anticipatedReplyMove = topScoringMoves[0].eval.anticipatedReply;
+    bestMoveComponentList = topScoringMoves[0].eval.components;
+    bestMoveWeightedScores = topScoringMoves[0].eval.weightedScores; 
+    tieBreakerReason = "N/A (Minimax direct choice)";
   } else if (topScoringMoves.length > 1) {
-    console.log(`AI Log: Tie-breaking initiated. Minimax Score: ${bestScore}. Tied Moves Count: ${topScoringMoves.length}`);
-    // Pass all moves that tied for the best score to the tie-breaking logic
-    // The 'move' property of each element in topScoringMoves is {megaCellIdx, miniCellIdx}
-    // The 'eval' property is the full heuristic object.
-    bestMoveObject = applyTieBreakingRules(topScoringMoves, boardState, miniGridWinInfo, player);
-    aiDecisionType = `Tie-Breaker: ${bestMoveObject.ruleApplied}`;
+    console.log(`AI Log: Tie-breaking initiated. Minimax Score: ${bestScoreFromMinimax}. Tied Moves Count: ${topScoringMoves.length}`);
+    // Pass the full eval object to applyTieBreakingRules if it needs heuristic components for tie-breaking
+    chosenMoveObject = applyTieBreakingRules(topScoringMoves, boardState, miniGridWinInfo, player);
+    tieBreakerReason = chosenMoveObject.ruleApplied;
+    // Find the chosen move in allEvaluatedMoves to get its full eval object for logging
+    const fullChosenEval = allEvaluatedMoves.find(m => 
+        m.move.megaCellIdx === chosenMoveObject.move.megaCellIdx && 
+        m.move.miniCellIdx === chosenMoveObject.move.miniCellIdx
+    );
+    if (fullChosenEval) {
+        anticipatedReplyMove = fullChosenEval.eval.anticipatedReply;
+        bestMoveComponentList = fullChosenEval.eval.components;
+        bestMoveWeightedScores = fullChosenEval.eval.weightedScores;
+    } else {
+        // Fallback if chosen move not found, though should not happen
+        anticipatedReplyMove = null;
+        bestMoveComponentList = {};
+        bestMoveWeightedScores = {};
+    }
   } else {
-    // Should not happen if allEvaluatedMoves has items
     const randomFallbackMove = eligibleMoves[Math.floor(Math.random() * eligibleMoves.length)];
-    aiDecisionType = "Random fallback (No top scoring moves identified after sort).";
-    console.log(`AI Log: ${aiDecisionType} Chosen: [${randomFallbackMove.megaCellIdx + 1},${randomFallbackMove.miniCellIdx + 1}]`);
-    return { move: randomFallbackMove, aiDecisionInfo: aiDecisionType };
+    topReason = "Random fallback (No top scoring moves identified after sort).";
+    bestMove = randomFallbackMove;
+    console.log(`AI Log: ${topReason} Chosen: [${bestMove.megaCellIdx + 1},${bestMove.miniCellIdx + 1}]`);
+    return formatAiDecisionInfo(turnNumber, player, bestMove, topReason, "N/A", null, 0, {}, currentWeights, "");
   }
   
-  chosenMove = bestMoveObject.move;
+  bestMove = chosenMoveObject.move;
+  finalScore = bestScoreFromMinimax; // The score of the best move (and tied moves)
 
-  if (chosenMove) {
-    // Construct the detailed log string for all considered moves
-    const allMovesSummary = allEvaluatedMoves.map(item => {
-      const moveStr = `[${item.move.megaCellIdx + 1},${item.move.miniCellIdx + 1}]`;
-      const evalObj = item.eval;
-      // L: Local Score, G: Global Score, OT: O's Threat Score, XTc: X's Raw Threat Count
-      return `${moveStr}:${evalObj.score} (L:${evalObj.local},G:${evalObj.global},OT:${evalObj.threatsPlayer},XTc:${evalObj.threatsOpponent})`;
-    }).join(', '); // This will be formatted with newlines later as per user request
+  // Prepare otherMovesConsideredLog (top 12, excluding the best one if already chosen by minimax directly)
+  const movesToLog = allEvaluatedMoves.slice(0, 12);
+  otherMovesConsideredLog = movesToLog.map(item => {
+    const moveStr = `[${item.move.megaCellIdx + 1},${item.move.miniCellIdx + 1}]`;
+    const evalObj = item.eval;
+    const c = evalObj.components || {}; 
+    return `  ${moveStr} Score:${evalObj.score} (Omini:${c.Omini || 0}, Xmini:${c.Xmini || 0}, mega:${c.mega || 0}, Omini_thr:${c.Omini_threat || 0}, Omega_thr:${c.Omega_threat || 0}, Xmini_thr:${c.Xmini_threat || 0}, Xmega_thr:${c.Xmega_threat || 0})`;
+  }).join('\n');
 
-    const aiDecisionInfo = `${aiDecisionType}, Score: ${bestScore}, Considered:\n${allEvaluatedMoves.map(item => {
-      const moveStr = `[${item.move.megaCellIdx + 1},${item.move.miniCellIdx + 1}]`;
-      const evalObj = item.eval;
-      return `  ${moveStr}:${evalObj.score} (L:${evalObj.local},G:${evalObj.global},OT:${evalObj.threatsPlayer},XTc:${evalObj.threatsOpponent})`;
-    }).join('\n')}`;
-    
-    console.log(`AI Log: Chosen Move: [${chosenMove.megaCellIdx + 1},${chosenMove.miniCellIdx + 1}], Decision: ${aiDecisionType}, Minimax Score (v3): ${bestScore}. Full consideration details in UI Log.`);
-    return { move: chosenMove, aiDecisionInfo };
+  if (bestMove) {
+    console.log(`AI Log: Chosen Move: [${bestMove.megaCellIdx + 1},${bestMove.miniCellIdx + 1}], Decision: ${topReason}, Tie-Breaker: ${tieBreakerReason}, Minimax Score: ${finalScore}.`);
+    return formatAiDecisionInfo(turnNumber, player, bestMove, topReason, tieBreakerReason, anticipatedReplyMove, finalScore, bestMoveComponentList, currentWeights, otherMovesConsideredLog);
   } else if (eligibleMoves.length > 0) {
-    // Fallback if tie-breaking somehow fails to select a move (should be handled by applyTieBreakingRules returning a default)
     const randomFallbackMove = eligibleMoves[Math.floor(Math.random() * eligibleMoves.length)];
-    aiDecisionType = "Random fallback (Tie-breaking did not yield a move).";
-    console.log(`AI Log: ${aiDecisionType} Chosen: [${randomFallbackMove.megaCellIdx + 1},${randomFallbackMove.miniCellIdx + 1}]`);
-    return { move: randomFallbackMove, aiDecisionInfo: aiDecisionType };
+    topReason = "Random fallback (Tie-breaking did not yield a move).";
+    bestMove = randomFallbackMove;
+    console.log(`AI Log: ${topReason} Chosen: [${bestMove.megaCellIdx + 1},${bestMove.miniCellIdx + 1}]`);
+    return formatAiDecisionInfo(turnNumber, player, bestMove, topReason, "N/A", null, 0, {}, currentWeights, "");
   }
 
-  const finalAiDecisionInfo = "No move selected by any logic (end of getBotMove).";
-  console.log("AI Log: " + finalAiDecisionInfo);
-  return { move: null, aiDecisionInfo: finalAiDecisionInfo };
+  topReason = "No move selected by any logic (end of getBotMove).";
+  console.log("AI Log: " + topReason);
+  return formatAiDecisionInfo(turnNumber, player, null, topReason, "N/A", null, 0, {}, currentWeights, "");
+};
+
+const formatAiDecisionInfo = (turnNumber, player, bestMove, topReason, tieBreakerRuleApplied, anticipatedReply, score, components, weights, otherMovesConsideredLog) => {
+  const moveStr = bestMove ? `Mega ${bestMove.megaCellIdx + 1} Mini ${bestMove.miniCellIdx + 1}` : "N/A";
+  const anticipatedReplyStr = anticipatedReply ? `[${anticipatedReply.megaCellIdx + 1},${anticipatedReply.miniCellIdx + 1}]` : "N/A";
+  
+  const componentsStr = `[Omini: ${components.Omini !== undefined ? components.Omini : 'N/A'}, ` +
+                        `Xmini: ${components.Xmini !== undefined ? components.Xmini : 'N/A'}, ` +
+                        `mega: ${components.mega !== undefined ? components.mega : 'N/A'}, ` +
+                        `Omini_threat: ${components.Omini_threat !== undefined ? components.Omini_threat : 'N/A'}, ` +
+                        `Omega_threat: ${components.Omega_threat !== undefined ? components.Omega_threat : 'N/A'}, ` +
+                        `Xmini_threat: ${components.Xmini_threat !== undefined ? components.Xmini_threat : 'N/A'}, ` +
+                        `Xmega_threat: ${components.Xmega_threat !== undefined ? components.Xmega_threat : 'N/A'}]`;
+
+  const weightsStr = `[Omini: ${weights.Omini}, Xmini: ${weights.Xmini}, mega: ${weights.mega}, ` +
+                     `Omini_threat: ${weights.Omini_threat}, Omega_threat: ${weights.Omega_threat}, ` +
+                     `Xmini_threat: ${weights.Xmini_threat}, Xmega_threat: ${weights.Xmega_threat}]`;
+
+  let tieBreakerDescription = "N/A";
+  if (tieBreakerRuleApplied && tieBreakerRuleApplied !== "N/A" && tieBreakerRuleApplied !== "N/A (Minimax direct choice)" && tieBreakerRuleApplied !== "Minimax Highest Score") {
+    if (tieBreakerRuleApplied.includes("Rule 6.2.1")) {
+      tieBreakerDescription = "Strategy: Avoid giving opponent a free turn";
+    } else if (tieBreakerRuleApplied.includes("Rule 6.2.2")) {
+      tieBreakerDescription = "Strategy: Positional play (Center/Corner/Edge preference)";
+    } else if (tieBreakerRuleApplied.includes("Rule 6.2.3")) {
+      tieBreakerDescription = "Strategy: Tactical fork management (Create/Block)";
+    } else {
+      tieBreakerDescription = tieBreakerRuleApplied; // Fallback to original rule string if not mapped
+    }
+  }
+
+  let logString = `Turn ${turnNumber}; ${player} played ${moveStr}\n`;
+  logString += `because: ${topReason}\n`;
+  if (tieBreakerDescription !== "N/A") {
+    logString += `with tie breaker: ${tieBreakerDescription}\n`;
+  }
+  logString += `Best move: ${bestMove ? `[${bestMove.megaCellIdx+1},${bestMove.miniCellIdx+1}]` : 'N/A'}\n`;
+  logString += `Anticipated Reply: ${anticipatedReplyStr}\n`;
+  logString += `Score: ${score}\n`;
+  logString += `Components: ${componentsStr}\n`;
+  logString += `Weights: ${weightsStr}\n`;
+  if (otherMovesConsideredLog) {
+    logString += `Other moves considered (max 12, sorted by score):\n${otherMovesConsideredLog}`;
+  }
+
+  return {
+    move: bestMove,
+    aiDecisionInfo: logString 
+  };
 };
 
 // Phase 3: Minimax Algorithm
 const minimax = (boardState, miniGridWinInfo, depth, isMaximizingPlayer, currentActiveMegaCellIndex, playerForMinimax) => {
-  // playerForMinimax is 'O' (bot, maximizer), opponent is 'X' (user, minimizer)
   const opponentPlayer = playerForMinimax === 'O' ? 'X' : 'O';
 
-  // Check for terminal states (global win/loss/draw) or max depth
-  // First, check for global win based on miniGridWinInfo directly passed into this node of minimax
   const megaGridCellsForWinCheck = miniGridWinInfo.map(info => info ? info.winner : null);
   const globalWinCheck = checkWinAndCombination(megaGridCellsForWinCheck);
 
+  // Initialize with a move property for tracking anticipated reply
+  let terminalEvalObject = { score: 0, components: {}, weightedScores: {}, anticipatedReply: null };
+
   if (globalWinCheck) {
-    if (globalWinCheck.winner === playerForMinimax) return Infinity; // Bot wins
-    if (globalWinCheck.winner === opponentPlayer) return -Infinity; // Opponent wins
+    if (globalWinCheck.winner === playerForMinimax) terminalEvalObject.score = Infinity;
+    else if (globalWinCheck.winner === opponentPlayer) terminalEvalObject.score = -Infinity;
+    // else, score is 0 for a draw (already initialized)
+    return terminalEvalObject; 
   }
 
-  // Get eligible moves for the current player in the simulation
   const currentPlayerForNode = isMaximizingPlayer ? playerForMinimax : opponentPlayer;
   const eligibleMoves = getEligibleMoves(boardState, currentActiveMegaCellIndex, miniGridWinInfo);
 
-  // Check for draw (no eligible moves and no global win)
   if (eligibleMoves.length === 0) {
-    return 0; // Draw or stalemate in this path
+    return terminalEvalObject; // Draw or stalemate, score 0
   }
 
-  if (depth === 2) { // Max depth for 2-ply (Bot move -> User move -> Heuristic)
+  if (depth === 2) { 
     const heuristicResult = calculate_heuristic_v3(boardState, miniGridWinInfo, playerForMinimax);
-    // Simple log added here for heuristic output at leaf node
-    console.log(`MINIMAX_HEURISTIC_V3_LEAF_EVAL: Player=${playerForMinimax}, boardState[2]=${JSON.stringify(boardState[2])}, HeuristicOutput=${JSON.stringify(heuristicResult)}`);
-    // Return the full heuristic object instead of just the score
-    return heuristicResult;
+    // console.log(`MINIMAX_HEURISTIC_V3_LEAF_EVAL: Player=${playerForMinimax}, boardState[2]=${JSON.stringify(boardState[2])}, HeuristicOutput=${JSON.stringify(heuristicResult)}`);
+    return { ...heuristicResult, anticipatedReply: null }; // No further reply at leaf node
   }
 
-  if (isMaximizingPlayer) { // Bot 'O' is maximizing
-    let maxEvalObject = { score: -Infinity }; // Initialize with an object
+  if (isMaximizingPlayer) {
+    let maxEvalObject = { score: -Infinity, anticipatedReply: null };
     for (const move of eligibleMoves) {
-      // Simulate the bot's move
       const simState = simulateMove(boardState, miniGridWinInfo, move.megaCellIdx, move.miniCellIdx, playerForMinimax);
       const nextActiveMegaCell = determineNextActiveMegaCell(move.miniCellIdx, simState.tempMiniGridWinInfo, simState.tempBoardState);
       
       const evalResultObject = minimax(simState.tempBoardState, simState.tempMiniGridWinInfo, depth + 1, false, nextActiveMegaCell, playerForMinimax);
       if (evalResultObject.score > maxEvalObject.score) {
-        maxEvalObject = evalResultObject;
+        maxEvalObject = { ...evalResultObject, move: move }; // Store the bot's move that led to this eval
       }
     }
+    // If maxEvalObject still has -Infinity, it means all moves lead to immediate loss or bad states.
+    // The 'move' property on maxEvalObject is the bot's move.
+    // The 'anticipatedReply' on evalResultObject (if we were one level deeper) would be the opponent's move.
+    // For the purpose of logging what *opponent* does, we capture it when isMaximizingPlayer is false.
     return maxEvalObject;
-  } else { // Opponent 'X' is minimizing
-    let minEvalObject = { score: +Infinity }; // Initialize with an object
+  } else { // Minimizing player (opponent)
+    let minEvalObject = { score: +Infinity, anticipatedReply: null }; 
     for (const move of eligibleMoves) {
-      // Simulate the opponent's move
       const simState = simulateMove(boardState, miniGridWinInfo, move.megaCellIdx, move.miniCellIdx, opponentPlayer);
       const nextActiveMegaCell = determineNextActiveMegaCell(move.miniCellIdx, simState.tempMiniGridWinInfo, simState.tempBoardState);
 
       const evalResultObject = minimax(simState.tempBoardState, simState.tempMiniGridWinInfo, depth + 1, true, nextActiveMegaCell, playerForMinimax);
       if (evalResultObject.score < minEvalObject.score) {
-        minEvalObject = evalResultObject;
+        minEvalObject = { ...evalResultObject, anticipatedReply: move }; // This 'move' is the opponent's reply
       }
     }
     return minEvalObject;

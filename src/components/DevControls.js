@@ -7,7 +7,8 @@ const DevControls = ({
   onRedo,
   canRedo,
   onShowLogs,
-  onToggleLoadStateModal
+  onToggleLoadStateModal,
+  lastBotMoveDetails
 }) => {
   return (
     <div className="dev-controls-container">
@@ -23,6 +24,12 @@ const DevControls = ({
       <button onClick={onToggleLoadStateModal}>
         Load Game State
       </button>
+      {lastBotMoveDetails && (
+        <div className="last-bot-move-details">
+          <h3>Last Bot Move:</h3>
+          <pre>{lastBotMoveDetails}</pre>
+        </div>
+      )}
     </div>
   );
 };

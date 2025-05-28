@@ -22,7 +22,7 @@ import { LoadStateModal } from './components/LoadStateModal';
 import { usePersistentGameState } from './utils/hooks';
 import ShareSection from './components/ShareSection';
 
-const IS_DEVELOPMENT_MODE = true; // Manually toggle this for dev/prod
+const IS_DEVELOPMENT_MODE = false; // Manually toggle this for dev/prod
 
 function App() {
   const {

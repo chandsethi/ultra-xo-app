@@ -17,12 +17,13 @@ import {
   getBotMove
 } from './utils/gameLogic';
 import NavBar from './components/NavBar';
+import DevControls from './components/DevControls';
 import { LogModal } from './components/LogModal';
 import { LoadStateModal } from './components/LoadStateModal';
 import { usePersistentGameState } from './utils/hooks';
 import ShareSection from './components/ShareSection';
 
-const IS_DEVELOPMENT_MODE = false; // Manually toggle this for dev/prod
+const IS_DEVELOPMENT_MODE = process.env.NODE_ENV === 'development'; // Use environment variable
 
 function App() {
   const {
@@ -563,6 +564,16 @@ function App() {
         onClose={() => setShowLoadStateModal(false)}
         onLoadState={handleLoadState}
       />
+      {IS_DEVELOPMENT_MODE && (
+        <DevControls 
+          onUndo={handleUndo}
+          canUndo={history.length > 0}
+          onRedo={handleRedo}
+          canRedo={redoStack.length > 0}
+          onShowLogs={() => setShowLogsModal(true)}
+          onToggleLoadStateModal={handleToggleLoadStateModal}
+        />
+      )}
     </div>
   );
 }

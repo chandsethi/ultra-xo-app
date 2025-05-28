@@ -1,36 +1,19 @@
 import React from 'react';
+import './TopControls.css'; // Assuming this file will be created or already exists
 
-export function TopControls({
+const TopControls = ({ 
   onNewGame,
-  onUndo,
-  canUndo,
-  onRedo,
-  canRedo,
-  onShowLogs,
-  onToggleLoadStateModal,
-  showDevControls
-}) {
+  // Removed unused props: onUndo, canUndo, onRedo, canRedo, onShowLogs, onToggleLoadStateModal, isRedoDisabled, showDevControls
+}) => {
   return (
-    <div className="top-controls">
-      <button onClick={onNewGame} className="new-game-button">
-        New Game
-      </button>
-      {showDevControls && (
-        <>
-          <button onClick={onUndo} className="undo-button" disabled={!canUndo}>
-            Undo
-          </button>
-          <button onClick={onRedo} className="redo-button" disabled={!canRedo}>
-            Redo
-          </button>
-          <button onClick={onShowLogs} className="show-logs-button">
-            Show Logs
-          </button>
-          <button onClick={onToggleLoadStateModal} className="load-game-state-button">
-            Load Game State
-          </button>
-        </>
-      )}
+    <div className="top-nav-bar">
+      <div className="title">Ultra XOXO</div>
+      <div className="nav-actions">
+        <span onClick={onNewGame} className="nav-link">New Game</span>
+        {/* All other buttons are removed as per the new design focus */}
+      </div>
     </div>
   );
-} 
+};
+
+export default TopControls; 

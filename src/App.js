@@ -16,7 +16,7 @@ import {
   processPlayerMove,
   getBotMove
 } from './utils/gameLogic';
-import { TopControls } from './components/TopControls';
+import NavBar from './components/NavBar';
 import { LogModal } from './components/LogModal';
 import { LoadStateModal } from './components/LoadStateModal';
 import { usePersistentGameState } from './utils/hooks';
@@ -513,18 +513,8 @@ function App() {
   };
 
   return (
-    <div className="app-container">
-      <TopControls 
-        onNewGame={resetGameState}
-        onUndo={handleUndo}
-        canUndo={history.length > 0}
-        onRedo={handleRedo}
-        canRedo={redoStack.length > 0}
-        onShowLogs={() => setShowLogsModal(true)}
-        onToggleLoadStateModal={handleToggleLoadStateModal}
-        isRedoDisabled={redoStack.length === 0}
-        showDevControls={IS_DEVELOPMENT_MODE}
-      />
+    <div className="app-container" style={{ paddingTop: '60px' }}>
+      <NavBar onNewGame={resetGameState} />
       <div style={{ display: 'flex', justifyContent: 'center' }}>
         <div className={`mega-grid ${megaGridWinInfo ? 'game-over' : ''}`} style={{ position: 'relative'}}>
           {boardState.map((individualMiniGridCells, idx) => (

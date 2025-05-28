@@ -1,0 +1,32 @@
+.nav-bar-container {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background-color: #6a7179;
+  padding: 10px 20px;
+  color: white;
+  height: 50px; /* Or adjust as needed */
+  width: 100%;
+  box-sizing: border-box;
+  position: fixed; /* Stick to the top */
+  top: 0;
+  left: 0;
+  z-index: 1000; /* Ensure it's above other content */
+}
+
+.nav-bar-title {
+  font-size: 1.5em;
+  font-weight: bold;
+}
+
+.nav-bar-actions .nav-bar-link {
+  color: white;
+  text-decoration: none;
+  cursor: pointer;
+  font-size: 1em;
+  margin-left: 15px;
+}
+
+.nav-bar-actions .nav-bar-link:hover {
+  text-decoration: underline;
+} 

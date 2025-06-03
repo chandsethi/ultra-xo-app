@@ -1,0 +1,73 @@
+.how-to-play-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5); /* Semi-transparent black */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000; /* Ensure it's on top */
+}
+
+.how-to-play-modal-content {
+  background-color: white;
+  padding: 20px;
+  border-radius: 8px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  position: relative;
+  max-width: 500px;
+  width: 90%;
+  text-align: center;
+  display: flex; /* Added for flex column layout */
+  flex-direction: column; /* Added for flex column layout */
+  align-items: center; /* Added for flex column layout */
+}
+
+.how-to-play-modal-image {
+  max-width: 100%;
+  height: auto;
+  margin-bottom: 15px;
+  border-radius: 4px;
+}
+
+.how-to-play-modal-text {
+  font-size: 1rem;
+  color: #333;
+  line-height: 1.6;
+  margin: 0 0 20px 0;
+  width: 100%; /* Ensure ol takes full width available in parent */
+  text-align: left; /* Align text to the left */
+  padding-left: 20px; /* Add padding for list numbers if default list-style-position is outside */
+}
+
+.how-to-play-modal-text li {
+  margin-bottom: 8px; /* Add some space between list items */
+}
+
+.player-x {
+  font-weight: bold;
+  color: red;
+}
+
+.player-o {
+  font-weight: bold;
+  color: blue;
+}
+
+.how-to-play-modal-got-it-btn {
+  background-color: #697179;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 1rem;
+  margin-top: 10px; /* Spacing above the button */
+  transition: background-color 0.2s ease-in-out;
+}
+
+.how-to-play-modal-got-it-btn:hover {
+  background-color: #54585e; /* Darken button on hover */
+} 

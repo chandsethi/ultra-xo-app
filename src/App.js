@@ -22,6 +22,7 @@ import { LogModal } from './components/LogModal';
 import { LoadStateModal } from './components/LoadStateModal';
 import { usePersistentGameState } from './utils/hooks';
 import ShareSection from './components/ShareSection';
+import { HowToPlayModal } from './components/HowToPlayModal';
 
 const IS_DEVELOPMENT_MODE = process.env.NODE_ENV === 'development'; // Use environment variable
 
@@ -40,12 +41,14 @@ function App() {
   const initialGameStateLog = () => [];
   const initialShowLogsModal = false;
   const initialShowLoadStateModal = false;
+  const initialShowHowToPlayModal = false;
 
   const [hoveredCell, setHoveredCell] = useState({ mega: null, mini: null });
   const [redoStack, setRedoStack] = useState(initialRedoStack());
   const [gameStateLog, setGameStateLog] = useState(initialGameStateLog());
   const [showLogsModal, setShowLogsModal] = useState(initialShowLogsModal);
   const [showLoadStateModal, setShowLoadStateModal] = useState(initialShowLoadStateModal);
+  const [showHowToPlayModal, setShowHowToPlayModal] = useState(initialShowHowToPlayModal);
   const [showShareSection, setShowShareSection] = useState(false);
   const [lastBotMoveDetails, setLastBotMoveDetails] = useState('');
 
@@ -53,7 +56,7 @@ function App() {
   const [blinkingCell, setBlinkingCell] = useState({ mega: null, mini: null });
   const [isBlinking, setIsBlinking] = useState(false);
   const [blinkShowIcon, setBlinkShowIcon] = useState(true);
-  const [botMoveToFinalize, setBotMoveToFinalize] = useState(null); // To store the bot's move details
+  const [botMoveToFinalize, setBotMoveToFinalize] = useState(null);
 
   // Wrapped in useCallback to ensure stable reference if used in other useEffect deps
   const completeBotTurnAndSwitchPlayer = useCallback(() => {
@@ -365,6 +368,7 @@ function App() {
     setGameStateLog(initialGameStateLog());
     setShowLogsModal(initialShowLogsModal);
     setShowLoadStateModal(initialShowLoadStateModal);
+    setShowHowToPlayModal(initialShowHowToPlayModal);
     setHoveredCell({ mega: null, mini: null });
 
     // Reset blinking states
@@ -432,6 +436,10 @@ function App() {
 
   const handleToggleLoadStateModal = () => {
     setShowLoadStateModal(!showLoadStateModal);
+  };
+
+  const handleToggleHowToPlayModal = () => {
+    setShowHowToPlayModal(!showHowToPlayModal);
   };
 
   const handleLoadState = (gameStateString) => {
@@ -532,7 +540,7 @@ function App() {
 
   return (
     <div className="app-container" style={{ paddingTop: '60px' }}>
-      <NavBar onNewGame={resetGameState} />
+      <NavBar onNewGame={resetGameState} onShowHowToPlay={handleToggleHowToPlayModal} />
       <div style={{ display: 'flex', justifyContent: 'center' }}>
         <div className={`mega-grid ${megaGridWinInfo ? 'game-over' : ''}`} style={{ position: 'relative'}}>
           {boardState.map((individualMiniGridCells, idx) => (
@@ -580,6 +588,10 @@ function App() {
         show={showLoadStateModal}
         onClose={() => setShowLoadStateModal(false)}
         onLoadState={handleLoadState}
+      />
+      <HowToPlayModal 
+        show={showHowToPlayModal}
+        onClose={handleToggleHowToPlayModal}
       />
       {IS_DEVELOPMENT_MODE && (
         <DevControls 

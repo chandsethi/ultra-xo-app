@@ -551,67 +551,70 @@ function App() {
     <div className="app-container">
       <NavBar onNewGame={resetGameState} />
       <div className="scrollable-content">
-        <div className="game-and-share-wrapper">
-          <div className={`mega-grid ${megaGridWinInfo ? 'game-over' : ''}`} style={{ position: 'relative'}}>
-            {boardState.map((individualMiniGridCells, idx) => (
-              <MegaCell 
-                key={idx} 
-                megaCellIndex={idx} 
-                miniGridCells={individualMiniGridCells} 
-                onCellClick={handleCellClick} 
-                hoveredMegaIndex={hoveredCell.mega}
-                hoveredMiniIndex={hoveredCell.mini}
-                onCellMouseEnter={handleCellMouseEnter}
-                onCellMouseLeave={handleCellMouseLeave}
-                currentPlayer={currentPlayer}
-                winInfo={miniGridWinInfo[idx]} 
-                isActiveMegaCell={activeMegaCellIndex === null || activeMegaCellIndex === idx}
-                blinkingCellGlobal={blinkingCell}
-                blinkShowIconGlobal={blinkShowIcon}
-                isCurrentlyBlinking={isBlinking}
-                megaCellAwaitingReveal={megaCellAwaitingReveal}
+        <div className="content-stack">
+          <div className="game-and-share-wrapper">
+            <div className={`mega-grid ${megaGridWinInfo ? 'game-over' : ''}`} style={{ position: 'relative'}}>
+              {boardState.map((individualMiniGridCells, idx) => (
+                <MegaCell 
+                  key={idx} 
+                  megaCellIndex={idx} 
+                  miniGridCells={individualMiniGridCells} 
+                  onCellClick={handleCellClick} 
+                  hoveredMegaIndex={hoveredCell.mega}
+                  hoveredMiniIndex={hoveredCell.mini}
+                  onCellMouseEnter={handleCellMouseEnter}
+                  onCellMouseLeave={handleCellMouseLeave}
+                  currentPlayer={currentPlayer}
+                  winInfo={miniGridWinInfo[idx]} 
+                  isActiveMegaCell={activeMegaCellIndex === null || activeMegaCellIndex === idx}
+                  blinkingCellGlobal={blinkingCell}
+                  blinkShowIconGlobal={blinkShowIcon}
+                  isCurrentlyBlinking={isBlinking}
+                  megaCellAwaitingReveal={megaCellAwaitingReveal}
+                />
+              ))}
+              {megaGridWinInfo && 
+                <WinningLine 
+                  combination={megaGridWinInfo.combination} 
+                  gridType="mega" 
+                  winner={megaGridWinInfo.winner} 
+                />}
+            </div>
+            {showShareSection && megaGridWinInfo && (
+              <ShareSection 
+                gameResult={megaGridWinInfo.winner} 
+                turns={history.length}
+                megaGridState={getMegaGridStateForShare()} 
+                onTweet={handleTweet}
               />
-            ))}
-            {megaGridWinInfo && 
-              <WinningLine 
-                combination={megaGridWinInfo.combination} 
-                gridType="mega" 
-                winner={megaGridWinInfo.winner} 
-              />}
+            )}
           </div>
-          {showShareSection && megaGridWinInfo && (
-            <ShareSection 
-              gameResult={megaGridWinInfo.winner} 
-              turns={history.length}
-              megaGridState={getMegaGridStateForShare()} 
-              onTweet={handleTweet}
+          <CollapsibleHelpWindow gameMovesCount={gameStateLog.length} />
+          {IS_DEVELOPMENT_MODE && (
+            <DevControls 
+              onUndo={handleUndo}
+              canUndo={history.length > 0}
+              onRedo={handleRedo}
+              canRedo={redoStack.length > 0}
+              onShowLogs={() => setShowLogsModal(true)}
+              onToggleLoadStateModal={handleToggleLoadStateModal}
+              lastBotMoveDetails={lastBotMoveDetails}
             />
           )}
         </div>
-        <Analytics />
-        <LogModal 
-          show={showLogsModal}
-          onClose={() => setShowLogsModal(false)}
-          logEntries={gameStateLog}
-        />
-        <LoadStateModal 
-          show={showLoadStateModal}
-          onClose={() => setShowLoadStateModal(false)}
-          onLoadState={handleLoadState}
-        />
-        <CollapsibleHelpWindow gameMovesCount={gameStateLog.length} />
-        {IS_DEVELOPMENT_MODE && (
-          <DevControls 
-            onUndo={handleUndo}
-            canUndo={history.length > 0}
-            onRedo={handleRedo}
-            canRedo={redoStack.length > 0}
-            onShowLogs={() => setShowLogsModal(true)}
-            onToggleLoadStateModal={handleToggleLoadStateModal}
-            lastBotMoveDetails={lastBotMoveDetails}
-          />
-        )}
       </div>
+      
+      <Analytics />
+      <LogModal 
+        show={showLogsModal}
+        onClose={() => setShowLogsModal(false)}
+        logEntries={gameStateLog}
+      />
+      <LoadStateModal 
+        show={showLoadStateModal}
+        onClose={() => setShowLoadStateModal(false)}
+        onLoadState={handleLoadState}
+      />
     </div>
   );
 }

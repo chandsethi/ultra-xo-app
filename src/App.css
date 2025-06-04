@@ -241,33 +241,48 @@ html.safari-styles .cell.empty.safari-hoverable:hover {
 }
 
 .app-container {
-  /* Assuming other styles like display: flex, flex-direction: column might exist or be desired */
-  /* The key parts for scrolling without pushing the grid up under the navbar: */
-  height: 100vh; 
-  display: flex; /* Use flex to manage layout of navbar and content area */
-  flex-direction: column; /* Stack navbar and content area vertically */
-  /* paddingTop: '60px' is handled inline in App.js, that's fine if NavBar is position:fixed or absolute */
+  padding-top: 60px; /* Space for the fixed NavBar */
+  height: 100vh;
+  box-sizing: border-box;
+  display: flex; /* Keeps NavBar and scrollable-content/modals in a column */
+  flex-direction: column;
 }
 
-/* If NavBar is not fixed/absolute and part of the flex flow: */
-/* .nav-bar-container { flex-shrink: 0; } */
-
-.main-content-area {
-  flex-grow: 1; /* Allows this area to take remaining space */
-  overflow-y: auto; /* Makes only this area scrollable */
-  display: flex; /* To keep current centering for mega-grid */
-  flex-direction: column; /* Stack game elements and mobile help */
-  align-items: center; /* Center mega-grid and mobile help section */
-  /* padding-top for NavBar space is already on app-container if NavBar is fixed */
-  /* If NavBar is in flow, main-content-area does not need padding-top */
+.app-container > .nav-bar-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1001;
+  /* NavBar.css handles its own height (e.g., 60px) and background */
 }
 
-/* The div that directly wraps mega-grid and ShareSection */
+.scrollable-content {
+  flex-grow: 1; /* Takes up space below fixed NavBar */
+  overflow-y: auto; /* Allows scrolling if content-stack is too tall */
+  display: grid; /* Changed from flex to grid */
+  place-items: center; /* Centers the single direct child (content-stack) */
+  min-height: 0; /* Prevents grid blowout in flex/grid parents */
+}
+
+.content-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: center; /* Horizontally center items like grid and mobile help section */
+  width: 100%; /* Takes full width of scrollable-content */
+  max-width: 720px; /* Optional: constrain max width, e.g., to match mega-grid max */
+  padding: 20px 0; /* Add some vertical padding, especially if content is short */
+  /* This padding helps if the centered content is very short, giving it some breathing room, */
+  /* and also if it's tall, before/after the scroll starts. */
+}
+
+/* Ensure game-and-share-wrapper and mobile-help-section stack properly */
 .game-and-share-wrapper {
-  display: flex; /* Keeps original flex for centering mega-grid */
+  display: flex;
   justify-content: center;
-  width: 100%; /* Take full width to center content */
-  /* Add other styles if needed to ensure grid is not pushed */
+  width: 100%;
+  /* margin-bottom: 20px; /* Space if mobile-help-section is directly below */
+  /* This margin is now better on .mega-grid or within .mobile-help-section */
 }
 
 .top-controls {
@@ -422,29 +437,6 @@ html.safari-styles .cell.empty.safari-hoverable:hover {
 }
 
 /* Styles for LoadStateModal */
-
-.app-container > .nav-bar-container {
-    position: fixed; /* Or absolute, ensure it's taken out of flow */
-    top: 0;
-    left: 0;
-    right: 0;
-    z-index: 1001; /* Higher than help window */
-    /* NavBar.css should handle its background and height (e.g. 60px) */
-}
-
-.app-container {
-    padding-top: 60px; /* Space for the fixed NavBar */
-    height: 100vh;
-    box-sizing: border-box;
-    display: flex;
-    flex-direction: column;
-}
-
-.scrollable-content {
-    flex-grow: 1;
-    overflow-y: auto;
-    /* This will contain the grid and the mobile help section */
-}
 
 /* App.js existing inline style for the div wrapping mega-grid */
 /* style={{ display: 'flex', justifyContent: 'center' }} */

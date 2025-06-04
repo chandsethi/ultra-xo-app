@@ -14,12 +14,12 @@ function LoadStateModal({ show, onClose, onLoadState }) {
       setError('Input string must be exactly 81 characters long.');
       return;
     }
-    if (!/^[xo-]+$/.test(gameStateString)) {
-      setError("Input string can only contain 'x', 'o', or '-'.");
+    if (!/^[xo,]+$/.test(gameStateString)) {
+      setError("Input string can only contain 'x', 'o', or ','.");
       return;
     }
     setError('');
-    onLoadState(gameStateString);
+    onLoadState(gameStateString.replace(/,/g, '-')); // Convert back to '-' for internal use
     setGameStateString(''); // Clear input after successful load
   };
 
@@ -38,13 +38,13 @@ function LoadStateModal({ show, onClose, onLoadState }) {
         </div>
         <div className="modal-body">
           <p>Paste an 81-character string representing the board state.</p>
-          <p>Use 'x' for Player X, 'o' for Player O, and '-' for empty cells.</p>
-          <p className="example-string-display">Example: ----x-----------------------------------o------------------------------------</p>
+          <p>Use 'x' for Player X, 'o' for Player O, and ',' for empty cells.</p>
+          <p className="example-string-display">Example: ,,,,x,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,o,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,</p>
           <textarea
             value={gameStateString}
             onChange={(e) => setGameStateString(e.target.value)}
             rows="3"
-            placeholder="Example: ----x-----------------------------------o------------------------------------"
+            placeholder="Example: ,,,,x,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,o,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,"
           />
           {error && <p className="error-message">{error}</p>}
         </div>

@@ -1,0 +1,116 @@
+.collapsible-help-window {
+  position: fixed;
+  bottom: 25px;
+  right: 25px;
+  width: 300px;
+  background-color: white;
+  border-top: 1px solid black;
+  border-right: 1px solid black;
+  border-left: 1px solid black;
+  border-bottom: none;
+  border-top-left-radius: 8px;
+  border-top-right-radius: 8px;
+  z-index: 100;
+  box-shadow: 0px -2px 10px rgba(0,0,0,0.1);
+  overflow: hidden;
+  transition: max-height 0.3s ease-in-out;
+}
+
+.collapsible-help-window.collapsed {
+  max-height: 45px;
+}
+
+.collapsible-help-window.expanded {
+  max-height: 500px;
+}
+
+.help-window-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 15px; /* Adjusted padding to fit content in 45px */
+  height: 45px;
+  cursor: pointer;
+  box-sizing: border-box;
+  border-bottom: 1px solid #eee; /* Slight separator for expanded view */
+}
+
+.collapsible-help-window.collapsed .help-window-header {
+  border-bottom: none; /* No border when collapsed */
+}
+
+.help-window-content {
+  padding: 15px;
+  /* Allow content to scroll if it exceeds max-height minus header */
+  max-height: calc(500px - 45px); 
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center; /* Center image */
+}
+
+.help-window-image {
+  max-width: 100%;
+  height: auto;
+  margin-bottom: 15px;
+  display: block; 
+}
+
+.help-window-rules {
+  list-style-position: inside; /* Numbers inside the list item block */
+  text-align: left;
+  width: 100%;
+  padding-left: 0; /* Reset padding as list-style is inside */
+  margin-top: 0;
+  margin-bottom: 10px; /* Space at the bottom of rules */
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.help-window-rules li {
+  margin-bottom: 8px;
+}
+
+.player-x {
+  font-weight: bold;
+  color: red;
+}
+
+.player-o {
+  font-weight: bold;
+  color: blue;
+}
+
+/* Mobile / Responsive View */
+.mobile-help-section {
+  display: none; /* Hidden by default */
+  padding: 20px;
+  text-align: center;
+  margin-top: 20px;
+  border-top: 1px solid #ccc; /* Optional: separator from grid */
+}
+
+.mobile-help-section h2 {
+  margin-bottom: 15px;
+  font-size: 1.2rem;
+}
+
+/* Media query: Activates mobile view if screen width is less than 900px */
+@media (max-width: 899px) {
+  .collapsible-help-window {
+    display: none !important; /* Hide the floating window */
+  }
+  .mobile-help-section {
+    display: block; /* Show the section below the grid */
+  }
+  .mobile-help-section .help-window-rules {
+    /* Ensure rules are still left-aligned and properly spaced in mobile */
+    text-align: left;
+    margin-left: auto;  /* Centering the ol block if it has a fixed width */
+    margin-right: auto; /* Centering the ol block if it has a fixed width */
+    max-width: 90%; /* Prevent it from being too wide on mobile */
+  }
+  .mobile-help-section .help-window-image {
+    margin-top: 15px; /* Space after the rules list */
+  }
+} 

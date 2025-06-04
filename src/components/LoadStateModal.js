@@ -39,6 +39,7 @@ function LoadStateModal({ show, onClose, onLoadState }) {
         <div className="modal-body">
           <p>Paste an 81-character string representing the board state.</p>
           <p>Use 'x' for Player X, 'o' for Player O, and '-' for empty cells.</p>
+          <p className="example-string-display">Example: ----x-----------------------------------o------------------------------------</p>
           <textarea
             value={gameStateString}
             onChange={(e) => setGameStateString(e.target.value)}

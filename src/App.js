@@ -54,54 +54,30 @@ function App() {
   const [blinkingCell, setBlinkingCell] = useState({ mega: null, mini: null });
   const [isBlinking, setIsBlinking] = useState(false);
   const [blinkShowIcon, setBlinkShowIcon] = useState(true);
-  const [botMoveToFinalize, setBotMoveToFinalize] = useState(null);
-
-  // Wrapped in useCallback to ensure stable reference if used in other useEffect deps
-  const completeBotTurnAndSwitchPlayer = useCallback(() => {
-    if (!botMoveToFinalize) return;
-
-    const { megaCellIdx, miniCellIdx } = botMoveToFinalize;
-
-    // Determine next active mega cell based on where the bot (O) played
-    let nextActiveMegaCellForX = miniCellIdx;
-    // Need boardState and miniGridWinInfo at the point of O's move completion
-    // Assuming boardState and miniGridWinInfo are already updated with O's move
-    if ((miniGridWinInfo[nextActiveMegaCellForX] && miniGridWinInfo[nextActiveMegaCellForX].winner) || 
-        isMiniGridFull(boardState[nextActiveMegaCellForX])) {
-      nextActiveMegaCellForX = null;
-    }
-
-    setActiveMegaCellIndex(nextActiveMegaCellForX);
-    setCurrentPlayer('X');
-    
-    setBlinkingCell({ mega: null, mini: null });
-    setBotMoveToFinalize(null);
-  }, [botMoveToFinalize, boardState, miniGridWinInfo, setActiveMegaCellIndex, setCurrentPlayer]);
+  const [pendingFinalization, setPendingFinalization] = useState(null);
+  const [megaCellAwaitingReveal, setMegaCellAwaitingReveal] = useState(null);
 
   useEffect(() => {
-    if (currentPlayer === 'O' && !megaGridWinInfo && !isBlinking) { 
+    if (currentPlayer === 'O' && !megaGridWinInfo && !isBlinking && !pendingFinalization) {
       const botMoveResult = getBotMove(boardState, miniGridWinInfo, activeMegaCellIndex, 'O');
 
       if (botMoveResult && botMoveResult.move) {
         const { move, aiDecisionInfo } = botMoveResult;
-        // Store the move to be finalized after blinking
-        setBotMoveToFinalize(move); 
-
-        // --- Part 1: Apply bot's move visually, log it, and start blinking --- 
         const playerMakingTheMove = 'O';
 
+        // Standard history update
         setHistory(prevHistory => [...prevHistory, 
           {
             boardState: JSON.parse(JSON.stringify(boardState)),
-            currentPlayer: playerMakingTheMove, // Log 'O' as current player for this state
+            currentPlayer: playerMakingTheMove,
             miniGridWinInfo: JSON.parse(JSON.stringify(miniGridWinInfo)),
             megaGridWinInfo: megaGridWinInfo ? JSON.parse(JSON.stringify(megaGridWinInfo)) : null,
-            activeMegaCellIndex // Log activeMegaCellIndex as it was for O's turn
+            activeMegaCellIndex
           }
         ]);
         setRedoStack(initialRedoStack());
 
-        // Directly update board state for 'O'
+        // Update board state for 'O's move
         const newBoardState = boardState.map((megaCell, mIdx) => 
           mIdx === move.megaCellIdx 
             ? megaCell.map((cell, cIdx) => (cIdx === move.miniCellIdx ? playerMakingTheMove : cell))
@@ -110,37 +86,45 @@ function App() {
         setBoardState(newBoardState);
 
         // Recalculate win info based on O's move
-        let newMiniGridWinInfo = miniGridWinInfo.map(info => info ? { ...info } : null);
-        let newMegaGridWinInfo = megaGridWinInfo ? { ...megaGridWinInfo } : null;
+        let newMiniGridWinInfoWithBotWin = miniGridWinInfo.map(info => info ? { ...info } : null);
+        let overallWinCheckForBot = megaGridWinInfo ? { ...megaGridWinInfo } : null; // Start with current megaGridWinInfo
         
         const affectedMiniGridCells = newBoardState[move.megaCellIdx];
         const miniWinCheck = checkWinAndCombination(affectedMiniGridCells);
-        if (miniWinCheck && (!newMiniGridWinInfo[move.megaCellIdx] || !newMiniGridWinInfo[move.megaCellIdx].winner)) {
-          newMiniGridWinInfo[move.megaCellIdx] = miniWinCheck;
-          const megaGridCellsForWinCheck = newMiniGridWinInfo.map(info => info ? info.winner : null);
-          const overallWinCheck = checkWinAndCombination(megaGridCellsForWinCheck);
-          if (overallWinCheck) {
-            newMegaGridWinInfo = overallWinCheck;
-            // If bot wins, no blinking, just show result (or handle game over state differently)
-            setMegaGridWinInfo(newMegaGridWinInfo);
-            // Potentially skip blinking if game ends
-            // For now, we'll let it blink, then game over state will be apparent
+
+        let botCausedMiniWin = false;
+        if (miniWinCheck && (!newMiniGridWinInfoWithBotWin[move.megaCellIdx] || !newMiniGridWinInfoWithBotWin[move.megaCellIdx].winner)) {
+          newMiniGridWinInfoWithBotWin[move.megaCellIdx] = miniWinCheck;
+          botCausedMiniWin = true;
+          const megaGridCellsForWinCheck = newMiniGridWinInfoWithBotWin.map(info => info ? info.winner : null);
+          const checkMega = checkWinAndCombination(megaGridCellsForWinCheck);
+          if (checkMega) {
+            overallWinCheckForBot = checkMega;
           }
         }
-        setMiniGridWinInfo(newMiniGridWinInfo);
-        if (newMegaGridWinInfo && (!megaGridWinInfo || newMegaGridWinInfo.winner !== megaGridWinInfo.winner )){
-            setMegaGridWinInfo(newMegaGridWinInfo);
-            if(newMegaGridWinInfo.winner) {
-                 // Game ended by bot's move, skip further blinking/turn switch if desired
-                 // For now, let blinking proceed, game over will be clear.
-            }
+        
+        // Determine next active mega cell for X
+        let nextActiveMegaCellForX = move.miniCellIdx;
+        if ((newMiniGridWinInfoWithBotWin[nextActiveMegaCellForX] && newMiniGridWinInfoWithBotWin[nextActiveMegaCellForX].winner) || 
+            isMiniGridFull(newBoardState[nextActiveMegaCellForX])) {
+          nextActiveMegaCellForX = null;
         }
 
-        // Logging the bot's move
-        const turnNumber = history.length; // history has just been updated
-        const structuredBoardLog = {}; // Rebuild or adapt existing log generation
+        // Set up for finalization after blinking
+        setPendingFinalization({
+          type: 'bot',
+          move: { megaCellIdx: move.megaCellIdx, miniCellIdx: move.miniCellIdx },
+          miniGridWinInfoToSet: newMiniGridWinInfoWithBotWin, 
+          megaGridWinInfoToSet: overallWinCheckForBot,
+          nextActiveMegaCell: nextActiveMegaCellForX,
+          nextPlayer: 'X'
+        });
+
+        // Logging
+        const turnNumber = history.length; 
+        const structuredBoardLog = {}; 
         for (let mgIdx = 0; mgIdx < 9; mgIdx++) {
-          const megaWinner = newMiniGridWinInfo[mgIdx] ? newMiniGridWinInfo[mgIdx].winner : null;
+          const megaWinner = newMiniGridWinInfoWithBotWin[mgIdx] ? newMiniGridWinInfoWithBotWin[mgIdx].winner : null;
           const miniGridLog = [];
           for (let mnIdx = 0; mnIdx < 9; mnIdx++) {
             const cellVal = newBoardState[mgIdx][mnIdx];
@@ -161,60 +145,47 @@ function App() {
         logEntryString += `; Board: ${boardString}`;
         setGameStateLog(prevLog => [...prevLog, logEntryString]);
         
-        // ---- Create the string for DevControls ----
         let botMoveDisplayString = `Turn ${turnNumber}; O played [mega ${move.megaCellIdx + 1}, mini ${move.miniCellIdx + 1}];`;
         if (aiDecisionInfo) {
-          // Concatenate strings to avoid issues with special characters in aiDecisionInfo within a template literal.
           botMoveDisplayString = botMoveDisplayString + " AI: " + aiDecisionInfo;
         }
         setLastBotMoveDetails(aiDecisionInfo);
-        // ---- End of creating string for DevControls ----
         
         // Start blinking
         setBlinkingCell({ mega: move.megaCellIdx, mini: move.miniCellIdx });
         setIsBlinking(true);
-        setBlinkShowIcon(true); // Start with icon visible
+        setBlinkShowIcon(true); 
 
       } else {
-        // No move found by bot, shouldn't usually happen if eligible moves exist
-        console.log(`AI Log: Bot found no move to make from App.js useEffect. Decision info: ${botMoveResult.aiDecisionInfo}`);
-        // Consider switching to player X if bot truly has no move and game isn't over
-        // For now, this might halt the game, needs robust handling if it occurs.
-        // setCurrentPlayer('X'); // Fallback if bot fails? Or should gameLogic handle draws?
+        console.log(`AI Log: Bot found no move to make. Decision info: ${botMoveResult?.aiDecisionInfo}`);
       }
     }
-  }, [currentPlayer, boardState, miniGridWinInfo, megaGridWinInfo, activeMegaCellIndex, isBlinking, history, setHistory, setBoardState, setMiniGridWinInfo, setMegaGridWinInfo, setGameStateLog]); 
+  }, [currentPlayer, boardState, miniGridWinInfo, megaGridWinInfo, activeMegaCellIndex, isBlinking, pendingFinalization, history, setHistory, setBoardState, setGameStateLog, setLastBotMoveDetails]); 
 
   // useEffect for the blinking animation itself
   useEffect(() => {
-    let t1, t2, t3, t4, t5; // Timeout IDs for the new blinking sequence
+    let t1, t2, t3, t4, t5; 
 
     if (isBlinking && blinkingCell.mega !== null) {
-      // Start with icon invisible for the initial 1-second delay
-      setBlinkShowIcon(false);
-
+      setBlinkShowIcon(false); 
       t1 = setTimeout(() => {
-        // After 1s, start the first V-I cycle
-        setBlinkShowIcon(true); // Visible for 250ms
+        setBlinkShowIcon(true); 
         t2 = setTimeout(() => {
-          setBlinkShowIcon(false); // Invisible for 250ms
+          setBlinkShowIcon(false); 
           t3 = setTimeout(() => {
-            // Start the second V-I cycle
-            setBlinkShowIcon(true); // Visible for 250ms
+            setBlinkShowIcon(true); 
             t4 = setTimeout(() => {
-              setBlinkShowIcon(false); // Invisible for 250ms
+              setBlinkShowIcon(false); 
               t5 = setTimeout(() => {
-                // End of animation
-                setBlinkShowIcon(true); // Ensure icon is finally visible
-                setIsBlinking(false);
-                completeBotTurnAndSwitchPlayer();
-              }, 250); // Duration of the second invisible part
-            }, 250); // Duration of the second visible part
-          }, 250); // Duration of the first invisible part
-        }, 250); // Duration of the first visible part
-      }, 1000); // Initial 1-second delay (invisible)
+                setBlinkShowIcon(true); 
+                setIsBlinking(false); // Blinking done
+              }, 250); 
+            }, 250); 
+          }, 250); 
+        }, 250); 
+      }, 1000); 
 
-      return () => { // Cleanup function to clear all timeouts
+      return () => { 
         clearTimeout(t1);
         clearTimeout(t2);
         clearTimeout(t3);
@@ -222,7 +193,60 @@ function App() {
         clearTimeout(t5);
       };
     }
-  }, [isBlinking, blinkingCell, completeBotTurnAndSwitchPlayer]);
+  }, [isBlinking, blinkingCell]);
+
+  // New useEffect for finalization after blinking
+  useEffect(() => {
+    if (!isBlinking && pendingFinalization) {
+      const { type, move, miniGridWinInfoToSet, megaGridWinInfoToSet, nextActiveMegaCell, nextPlayer, miniWinDetailToSet } = pendingFinalization;
+
+      let justWonMiniGridIndex = -1; // The index of the mini-grid that was just won
+
+      if (type === 'bot') {
+        setMiniGridWinInfo(miniGridWinInfoToSet); // Line appears for bot
+        // Check if the specific mini-grid for the bot's move is now a winner
+        if (miniGridWinInfoToSet[move.megaCellIdx] && miniGridWinInfoToSet[move.megaCellIdx].winner) {
+          justWonMiniGridIndex = move.megaCellIdx;
+        }
+      } else { // human
+        setMiniGridWinInfo(prev => { // Line appears for human
+          const newInfo = [...prev];
+          newInfo[move.megaCellIdx] = miniWinDetailToSet;
+          return newInfo;
+        });
+        // Check if the specific mini-grid for the human's move is now a winner
+        if (miniWinDetailToSet && miniWinDetailToSet.winner) {
+          justWonMiniGridIndex = move.megaCellIdx;
+        }
+      }
+
+      // If a mini-grid was just won, flag its mega-cell for the reveal delay
+      if (justWonMiniGridIndex !== -1) {
+        setMegaCellAwaitingReveal(justWonMiniGridIndex);
+      }
+
+      // Step 2: 1-second delay before showing big icon (for the specific mega-cell) and switching turn
+      const timerId = setTimeout(() => {
+        // Apply global game win state, if any (for the overall game winning line)
+        if (megaGridWinInfoToSet && megaGridWinInfoToSet.winner) {
+          setMegaGridWinInfo(megaGridWinInfoToSet);
+        }
+        
+        // Clear the awaiting reveal flag. This will allow the MegaCell component 
+        // (whose mini-grid was won) to re-render and show its large icon.
+        setMegaCellAwaitingReveal(null); 
+
+        // Switch player and active cell only if game is not globally won
+        if (!(megaGridWinInfoToSet && megaGridWinInfoToSet.winner)) {
+          setActiveMegaCellIndex(nextActiveMegaCell);
+          setCurrentPlayer(nextPlayer);
+        }
+        setPendingFinalization(null); // Clear pending data
+      }, 1000); // 1-second delay
+      
+      return () => clearTimeout(timerId); // Cleanup timeout
+    }
+  }, [isBlinking, pendingFinalization, setMiniGridWinInfo, setMegaGridWinInfo, setActiveMegaCellIndex, setCurrentPlayer, setPendingFinalization, setMegaCellAwaitingReveal]);
 
   useEffect(() => {
     const htmlElement = document.documentElement;
@@ -267,11 +291,11 @@ function App() {
   };
 
   const handleCellClick = useCallback(async (megaCellIdx, miniCellIdx, isBotMove = false, botDecisionInfo = null) => {
-    // Prevent user clicks if it's O's turn and blinking, or game over
-    if ((currentPlayer === 'O' && isBlinking) || megaGridWinInfo) return;
+    // Prevent clicks during blinking, finalization, or if game is over
+    if (isBlinking || pendingFinalization || megaGridWinInfo) return;
 
-    if (megaGridWinInfo || 
-        (miniGridWinInfo[megaCellIdx] && miniGridWinInfo[megaCellIdx].winner) || 
+    // Existing checks for valid move
+    if ((miniGridWinInfo[megaCellIdx] && miniGridWinInfo[megaCellIdx].winner) || 
         boardState[megaCellIdx][miniCellIdx]) {
       return; 
     }
@@ -281,6 +305,7 @@ function App() {
 
     const playerMakingTheMove = currentPlayer;
 
+    // Standard history update
     setHistory(prevHistory => [...prevHistory, 
       {
         boardState: JSON.parse(JSON.stringify(boardState)),
@@ -294,8 +319,8 @@ function App() {
 
     const { 
       processedBoardState,
-      processedMiniGridWinInfo,
-      processedMegaGridWinInfo,
+      processedMiniGridWinInfo, // This contains the potential win info for the current mini-grid
+      processedMegaGridWinInfo, // This contains potential overall game win
       processedActiveMegaCellIndex,
       processedNextPlayer,
       gameShouldContinue: newGameShouldContinue
@@ -309,56 +334,46 @@ function App() {
       miniCellIdx
     );
 
-    setBoardState(processedBoardState);
-    setMiniGridWinInfo(processedMiniGridWinInfo);
-    
-    if (processedMegaGridWinInfo) {
-      setMegaGridWinInfo(processedMegaGridWinInfo);
-    }
+    setBoardState(processedBoardState); // Show the piece immediately
 
-    if (newGameShouldContinue) {
-      setActiveMegaCellIndex(processedActiveMegaCellIndex);
-      setCurrentPlayer(processedNextPlayer);
+    // Check if this move won the mini-grid
+    const humanCausedMiniWin = 
+      processedMiniGridWinInfo[megaCellIdx] && 
+      processedMiniGridWinInfo[megaCellIdx].winner &&
+      (!miniGridWinInfo[megaCellIdx] || !miniGridWinInfo[megaCellIdx].winner);
+
+    if (humanCausedMiniWin) {
+      setPendingFinalization({
+        type: 'human',
+        move: { megaCellIdx, miniCellIdx },
+        miniWinDetailToSet: processedMiniGridWinInfo[megaCellIdx], // Just the detail for this specific grid
+        megaGridWinInfoToSet: processedMegaGridWinInfo, // This will be null if no mega win
+        nextActiveMegaCell: processedActiveMegaCellIndex,
+        nextPlayer: processedNextPlayer
+      });
+      setBlinkingCell({ mega: megaCellIdx, mini: miniCellIdx });
+      setIsBlinking(true);
+      setBlinkShowIcon(true);
     } else {
+      // No new mini-win, or not a win at all, proceed as before
+      setMiniGridWinInfo(processedMiniGridWinInfo);
+      if (processedMegaGridWinInfo) {
+        setMegaGridWinInfo(processedMegaGridWinInfo);
+      }
+      if (newGameShouldContinue) {
+        setActiveMegaCellIndex(processedActiveMegaCellIndex);
+        setCurrentPlayer(processedNextPlayer);
+      }
     }
     
     setHoveredCell({ mega: null, mini: null });
 
+    // Logging
     const turnNumber = gameStateLog.length + 1;
+    let logEntryForThisTurn = `Turn ${turnNumber}; ${playerMakingTheMove} played [mega ${megaCellIdx + 1}, mini ${miniCellIdx + 1}]`;
+    setGameStateLog(prevLogs => [...prevLogs, logEntryForThisTurn]);
     
-    let logEntryForThisTurn;
-
-    if (isBotMove && botDecisionInfo) {
-      // For bot moves, botDecisionInfo is the already formatted detailed log.
-      // The turn number is already incorporated into botDecisionInfo by formatAiDecisionInfo.
-      logEntryForThisTurn = botDecisionInfo;
-    } else if (!isBotMove) {
-      // For human moves, construct the simpler log as before.
-      const playerSymbol = currentPlayer;
-      // Create a simple board string for human moves if needed for older log format, or phase out.
-      // For consistency, human moves could also adopt a more structured log object later.
-      logEntryForThisTurn = `Turn ${turnNumber}; ${playerSymbol} played [mega ${megaCellIdx + 1}, mini ${miniCellIdx + 1}]`;
-    }
-
-    const newHistoryEntry = {
-      boardState: processedBoardState,
-      currentPlayer: processedNextPlayer,
-      miniGridWinInfo: processedMiniGridWinInfo,
-      megaGridWinInfo: processedMegaGridWinInfo,
-      activeMegaCellIndex: processedActiveMegaCellIndex,
-      gameShouldContinue: newGameShouldContinue,
-      // Log for this move is now more detailed for bot
-      log: logEntryForThisTurn 
-    };
-
-    setHistory(prevHistory => [...prevHistory, newHistoryEntry]);
-    // Add the constructed log entry to gameStateLog
-    if (logEntryForThisTurn) {
-      setGameStateLog(prevLogs => [...prevLogs, logEntryForThisTurn]);
-    }
-    setRedoStack([]); // Clear redo stack on new move
-
-  }, [boardState, currentPlayer, miniGridWinInfo, megaGridWinInfo, activeMegaCellIndex, history, gameStateLog, processPlayerMove]);
+  }, [boardState, currentPlayer, miniGridWinInfo, megaGridWinInfo, activeMegaCellIndex, history, gameStateLog, processPlayerMove, isBlinking, pendingFinalization, setBoardState, setHistory, setRedoStack, setMiniGridWinInfo, setMegaGridWinInfo, setActiveMegaCellIndex, setCurrentPlayer, setPendingFinalization, setBlinkingCell, setIsBlinking, setBlinkShowIcon, setHoveredCell, setGameStateLog]);
 
   const resetGameState = () => {
     resetPersistedState();
@@ -368,11 +383,12 @@ function App() {
     setShowLoadStateModal(initialShowLoadStateModal);
     setHoveredCell({ mega: null, mini: null });
 
-    // Reset blinking states
+    // Reset blinking and finalization states
     setIsBlinking(false);
     setBlinkingCell({ mega: null, mini: null });
     setBlinkShowIcon(true);
-    setBotMoveToFinalize(null);
+    setPendingFinalization(null);
+    setMegaCellAwaitingReveal(null);
 
     const htmlElement = document.documentElement;
     htmlElement.classList.remove('cursor-o-default', 'cursor-x-default');
@@ -553,6 +569,7 @@ function App() {
                 blinkingCellGlobal={blinkingCell}
                 blinkShowIconGlobal={blinkShowIcon}
                 isCurrentlyBlinking={isBlinking}
+                megaCellAwaitingReveal={megaCellAwaitingReveal}
               />
             ))}
             {megaGridWinInfo && 
@@ -600,4 +617,5 @@ function App() {
 }
 
 export default App;
+
 

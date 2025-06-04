@@ -15,10 +15,28 @@ export function MegaCell({
   isActiveMegaCell,
   blinkingCellGlobal,
   blinkShowIconGlobal,
-  isCurrentlyBlinking
+  isCurrentlyBlinking,
+  megaCellAwaitingReveal
 }) {
   let megaCellClasses = ['mega-cell'];
-  if (winInfo && winInfo.winner) {
+
+  // Determine if this specific megaCell is the one that contains the actively blinking miniCell
+  const isThisCellBlinkingItsWinningMove = 
+    isCurrentlyBlinking && 
+    blinkingCellGlobal && 
+    blinkingCellGlobal.mega === megaCellIndex;
+
+  // Condition to show large icon:
+  // 1. This mega cell has a winner (winInfo.winner)
+  // 2. Its own winning move is NOT currently blinking (!isThisCellBlinkingItsWinningMove)
+  // 3. This specific mega cell is NOT in the "awaiting mega reveal" phase (megaCellAwaitingReveal !== megaCellIndex)
+  const shouldShowLargeIcon = 
+    winInfo && 
+    winInfo.winner && 
+    !isThisCellBlinkingItsWinningMove && 
+    megaCellAwaitingReveal !== megaCellIndex;
+
+  if (shouldShowLargeIcon) {
     megaCellClasses.push('winner');
     return (
       <div className={megaCellClasses.join(' ')}>

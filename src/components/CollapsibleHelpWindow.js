@@ -63,7 +63,7 @@ const CollapsibleHelpWindow = ({ gameMovesCount }) => {
   if (isMobileView) {
     return (
       <div className="mobile-help-section">
-        <h2>The 2 rules</h2>
+        <h2>How to play</h2>
         {rulesContentMobileShared}
       </div>
     );
@@ -72,7 +72,7 @@ const CollapsibleHelpWindow = ({ gameMovesCount }) => {
   return (
     <div className={`collapsible-help-window ${isExpanded ? 'expanded' : 'collapsed'}`}>
       <div className="help-window-header" onClick={handleToggleExpand}>
-        <span>The 2 rules</span>
+        <span>How to play</span>
         <span>{isExpanded ? '↓' : '↑'}</span>
       </div>
       <div className="help-window-content">

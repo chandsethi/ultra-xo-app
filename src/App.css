@@ -67,7 +67,7 @@ html.cursor-o-default .cell {
   grid-template-columns: repeat(3, 1fr);
   grid-template-rows: repeat(3, 1fr);
   width: 90vmin; /* Use viewport minimum to fit screen */
-  height: 90vmin; /* Use viewport minimum to fit screen */
+  aspect-ratio: 1 / 1; /* Use aspect-ratio to enforce square shape */
   max-width: 720px; /* Optional: set a max size for large screens */
   max-height: 720px; /* Optional: set a max size for large screens */
   background-color: white; /* Ensure mega-grid background is white */
@@ -280,6 +280,7 @@ html.safari-styles .cell.empty.safari-hoverable:hover {
 .game-and-share-wrapper {
   display: flex;
   justify-content: center;
+  align-items: flex-start; /* Align to top */
   width: 100%;
   /* margin-bottom: 20px; /* Space if mobile-help-section is directly below */
   /* This margin is now better on .mega-grid or within .mobile-help-section */
@@ -342,7 +343,7 @@ html.safari-styles .cell.empty.safari-hoverable:hover {
   .mega-grid {
     margin-top: 0; 
     width: 85vmin; /* Slightly smaller grid for mobile */
-    height: 85vmin; /* Slightly smaller grid for mobile */
+    /* height is handled by aspect-ratio */
   }
 
   .mega-cell {

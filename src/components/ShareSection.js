@@ -1,7 +1,7 @@
 import React from 'react';
 import './ShareSection.css';
 
-const ShareSection = ({ gameResult, turns, megaGridState, onTweet }) => {
+const ShareSection = ({ gameResult, turns, megaGridState, onTweet, onNewGame }) => {
   const getResultTextVerb = () => {
     if (gameResult === 'X') return 'won';
     if (gameResult === 'O') return 'lost';
@@ -36,6 +36,14 @@ const ShareSection = ({ gameResult, turns, megaGridState, onTweet }) => {
         >
           Tweet
         </a>
+        <button onClick={onNewGame} className="new-game-button">
+          New Game
+        </button>
+        <div className="bmc-button-container">
+          <a href="https://www.buymeacoffee.com/chand" target="_blank" rel="noopener noreferrer">
+            <img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me a Coffee" style={{height: '45px', width: '162px', border: 'none', boxShadow: '0 1px 4px rgba(0,0,0,0.15)', margin: '8px auto', display: 'block'}} />
+          </a>
+        </div>
       </div>
     </div>
   );

@@ -586,6 +586,7 @@ function App() {
                 turns={history.length}
                 megaGridState={getMegaGridStateForShare()} 
                 onTweet={handleTweet}
+                onNewGame={resetGameState}
               />
             )}
           </div>

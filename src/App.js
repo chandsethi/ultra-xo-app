@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Analytics } from '@vercel/analytics/react';
+import { SpeedInsights } from '@vercel/speed-insights/react';
 import './App.css';
 import { XIcon, OIcon } from './components/Icons';
 import { WINNING_COMBINATIONS, LOCAL_STORAGE_KEY } from './utils/constants';
@@ -606,6 +607,7 @@ function App() {
       </div>
       
       <Analytics />
+      <SpeedInsights />
       <LogModal 
         show={showLogsModal}
         onClose={() => setShowLogsModal(false)}
